@@ -1,0 +1,277 @@
+@page "/workout-session/{WorkoutId:int}"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
+@using FitSite.Data
+@using FitSite.Data.Models
+@using Microsoft.EntityFrameworkCore
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-6">
+    <MudStack Spacing="2">
+        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="GoBack">
+            Back to Workouts
+        </MudButton>
+
+        @if (workout is null)
+        {
+            <MudText Typo="Typo.body1">The requested workout could not be found.</MudText>
+        }
+        else
+        {
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h5">@workout.Name</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
+                        Select a rest period and begin your session.
+                    </MudText>
+
+                    <MudGrid Spacing="2" Class="mb-3">
+                        <MudItem xs="8">
+                            <MudNumericField T="int"
+                                             Label="Rest Time (seconds)"
+                                             @bind-Value="restSeconds"
+                                             Min="5"
+                                             Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="4">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       FullWidth="true"
+                                       OnClick="StartWorkout"
+                                       Disabled="@(isWorkoutStarted || exerciseNames.Count == 0)">
+                                Begin Workout
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+
+            @if (isWorkoutStarted)
+            {
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle1">Current Exercise</MudText>
+                        <MudText Typo="Typo.h6" Class="mb-2">@currentExerciseName</MudText>
+
+                        <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
+                            Enter the reps and weight for the current set.
+                        </MudText>
+
+                        <MudGrid Spacing="2" Class="mb-3">
+                            <MudItem xs="6">
+                                <MudNumericField T="int"
+                                                 Label="Reps"
+                                                 @bind-Value="currentSetReps"
+                                                 Min="1"
+                                                 Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudNumericField T="decimal"
+                                                 Label="Weight (lbs)"
+                                                 @bind-Value="currentSetWeight"
+                                                 Min="0"
+                                                 Variant="Variant.Outlined" />
+                            </MudItem>
+                        </MudGrid>
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   FullWidth="true"
+                                   OnClick="RecordSet"
+                                   Disabled="@(isResting || string.IsNullOrWhiteSpace(currentExerciseName))">
+                            End Set
+                        </MudButton>
+
+                        @if (isResting)
+                        {
+                            <MudAlert Severity="Severity.Info" Class="mt-3">
+                                Resting for @remainingRestSeconds second@(remainingRestSeconds == 1 ? "" : "s")...
+                            </MudAlert>
+                        }
+                    </MudCardContent>
+                </MudCard>
+
+                <MudCard>
+                    <MudCardHeader>
+                        <MudText Typo="Typo.subtitle1">Recent History</MudText>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (historicalEntries.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                No prior history for this exercise yet.
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudStack Spacing="1">
+                                @foreach (var entry in historicalEntries)
+                                {
+                                    <MudPaper Class="pa-3" Outlined="true">
+                                        <MudText Typo="Typo.body2">
+                                            @entry.Reps reps × @entry.WeightLbs lbs
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                            Logged @entry.LoggedUtc.ToLocalTime().ToString("MMM d, yyyy • h:mm tt")
+                                        </MudText>
+                                    </MudPaper>
+                                }
+                            </MudStack>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public int WorkoutId { get; set; }
+
+    private string? userId;
+    private WorkoutSession? workout;
+    private List<ExerciseLog> workoutExercises = [];
+    private List<string> exerciseNames = [];
+    private List<ExerciseLog> historicalEntries = [];
+
+    private bool isWorkoutStarted;
+    private bool isResting;
+    private int restSeconds = 30;
+    private int remainingRestSeconds;
+    private int currentExerciseIndex;
+    private string? currentExerciseName;
+    private int currentSetReps = 10;
+    private decimal currentSetWeight;
+    private CancellationTokenSource? restTimerCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        workout = await Db.WorkoutSessions
+            .FirstOrDefaultAsync(w => w.Id == WorkoutId && w.UserId == userId);
+
+        if (workout is null) return;
+
+        workoutExercises = await Db.ExerciseLogs
+            .Where(e => e.WorkoutSessionId == WorkoutId && e.UserId == userId)
+            .OrderBy(e => e.LoggedUtc)
+            .ThenBy(e => e.Id)
+            .ToListAsync();
+
+        exerciseNames = workoutExercises
+            .Select(e => e.ExerciseName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task StartWorkout()
+    {
+        if (workout is null || exerciseNames.Count == 0) return;
+
+        currentExerciseIndex = 0;
+        currentExerciseName = exerciseNames[0];
+        isWorkoutStarted = true;
+        isResting = false;
+
+        await LoadHistoricalEntries();
+
+        var planEntry = workoutExercises.FirstOrDefault(e =>
+            string.Equals(e.ExerciseName, currentExerciseName, StringComparison.OrdinalIgnoreCase));
+
+        if (planEntry is not null)
+        {
+            currentSetReps = planEntry.Reps;
+            currentSetWeight = planEntry.WeightLbs;
+        }
+        else
+        {
+            currentSetReps = 10;
+            currentSetWeight = 0;
+        }
+    }
+
+    private async Task RecordSet()
+    {
+        if (workout is null || string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(currentExerciseName)) return;
+
+        var entry = new ExerciseLog
+        {
+            UserId = userId,
+            WorkoutSessionId = workout.Id,
+            ExerciseName = currentExerciseName,
+            Sets = 1,
+            Reps = currentSetReps,
+            WeightLbs = currentSetWeight,
+            LoggedUtc = DateTime.UtcNow
+        };
+
+        Db.ExerciseLogs.Add(entry);
+        await Db.SaveChangesAsync();
+
+        await LoadHistoricalEntries();
+        await StartRestTimer();
+    }
+
+    private async Task StartRestTimer()
+    {
+        if (restSeconds < 1) return;
+
+        isResting = true;
+        remainingRestSeconds = restSeconds;
+        restTimerCts?.Cancel();
+        restTimerCts = new CancellationTokenSource();
+        var token = restTimerCts.Token;
+
+        try
+        {
+            while (remainingRestSeconds > 0)
+            {
+                await Task.Delay(1000, token);
+                remainingRestSeconds--;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (TaskCanceledException) { }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                isResting = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private async Task LoadHistoricalEntries()
+    {
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(currentExerciseName))
+        {
+            historicalEntries = [];
+            return;
+        }
+
+        historicalEntries = await Db.ExerciseLogs
+            .Where(e => e.UserId == userId
+                && e.ExerciseName.ToLower() == currentExerciseName.ToLower()
+                && e.WorkoutSessionId != workout!.Id)
+            .OrderByDescending(e => e.LoggedUtc)
+            .Take(6)
+            .ToListAsync();
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/workouts");
+    }
+}

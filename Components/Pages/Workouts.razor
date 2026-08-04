@@ -1,0 +1,350 @@
+@page "/workouts"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
+@using FitSite.Data
+@using FitSite.Data.Models
+@using Microsoft.EntityFrameworkCore
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-6">
+    <MudText Typo="Typo.h4" Class="mb-4">Workouts</MudText>
+
+    <!-- Create -->
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            <MudText Typo="Typo.subtitle1" Class="mb-3">Add Exercise</MudText>
+
+            <MudTextField @bind-Value="exerciseName"
+                          Label="Exercise Name"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          Class="mb-3" />
+
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="4">
+                    <MudNumericField T="int"
+                                     @bind-Value="sets"
+                                     Label="Sets"
+                                     Min="1"
+                                     Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudNumericField T="int"
+                                     @bind-Value="reps"
+                                     Label="Reps"
+                                     Min="1"
+                                     Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudNumericField T="decimal"
+                                     @bind-Value="weightLbs"
+                                     Label="Weight"
+                                     Min="0"
+                                     Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+        <MudCardContent>
+            <MudText Typo="Typo.subtitle1" Class="mb-3">Workout Target</MudText>
+
+            <MudSelect T="int?" Label="Save To Workout"
+                   Variant="Variant.Outlined"
+                   Value="selectedWorkoutId"
+                   ValueChanged="OnWorkoutSelectionChanged"
+                   FullWidth="true"
+                   Class="mb-3">
+                <MudSelectItem T="int?" Value="null">-- Select Workout --</MudSelectItem>
+                @foreach (var w in savedWorkouts)
+                {
+                    <MudSelectItem T="int?" Value="@w.Id">@w.Name</MudSelectItem>
+                }
+                <MudSelectItem T="int?" Value="@CreateNewWorkoutOption">+ Create New Workout</MudSelectItem>
+            </MudSelect>
+
+            @if (selectedWorkoutId == CreateNewWorkoutOption)
+            {
+                <MudTextField @bind-Value="newWorkoutName"
+                          Label="New Workout Name"
+                          Variant="Variant.Outlined"
+                          FullWidth="true" />
+            }
+        </MudCardContent>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       OnClick="CreateExercise"
+                       Disabled="@(string.IsNullOrWhiteSpace(exerciseName))">
+                Add
+            </MudButton>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Read + Update + Delete -->
+    <MudCard>
+    <MudCardHeader>
+        <MudText Typo="Typo.subtitle1">Saved Workouts (@savedWorkouts.Count)</MudText>
+    </MudCardHeader>
+
+    <MudCardContent>
+        @if (savedWorkouts.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Tertiary">No saved workouts yet.</MudText>
+        }
+        else
+        {
+            <MudExpansionPanels MultiExpansion="false">
+                @foreach (var workout in savedWorkouts)
+                {
+                    <MudExpansionPanel Text="@workout.Name">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                Started @workout.StartedUtc.ToLocalTime().ToString("MMM d, yyyy • h:mm tt")
+                            </MudText>
+
+                            @if (workout.Exercises?.Any() == true)
+                            {
+                                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+                                    @foreach (var item in workout.Exercises)
+                                    {
+                                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small">
+                                            @item.ExerciseName
+                                        </MudChip>
+                                    }
+                                </MudStack>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                    No exercises added yet.
+                                </MudText>
+                            }
+
+                            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="1" Class="mt-2">
+                                <MudButton Size="Size.Small"
+                                            Variant="Variant.Text"
+                                            Color="Color.Success"
+                                            OnClick="@(() => BeginWorkout(workout.Id))">
+                                    Begin
+                                </MudButton>
+
+                                <MudButton Size="Size.Small"
+                                           Variant="Variant.Text"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => ChooseWorkout(workout.Id))">
+                                    Use
+                                </MudButton>
+
+                                <MudButton Size="Size.Small"
+                                           Variant="Variant.Text"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteWorkout(workout.Id))">
+                                    Delete
+                                </MudButton>
+                            </MudStack>
+                        </MudStack>
+                    </MudExpansionPanel>
+                }
+            </MudExpansionPanels>
+        }
+    </MudCardContent>
+</MudCard>
+</MudContainer>
+
+@code {
+    private const int CreateNewWorkoutOption = -1;
+private List<WorkoutSession> savedWorkouts = [];
+private int? selectedWorkoutId;
+private string newWorkoutName = "";
+    private string? userId;
+
+    // Create form fields
+    private string exerciseName = "";
+    private int sets = 3;
+    private int reps = 10;
+    private decimal weightLbs = 0;
+
+    // Read list
+    private List<ExerciseLog> exercises = [];
+
+    // Edit state
+    private int? editingExerciseId;
+    private string editExerciseName = "";
+    private int editSets;
+    private int editReps;
+    private decimal editWeightLbs;
+
+    protected override async Task OnInitializedAsync()
+{
+    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+    userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+    await LoadSavedWorkouts();
+    await LoadExercises();
+}
+
+    private async Task LoadExercises()
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        var query = Db.ExerciseLogs
+            .Where(x => x.UserId == userId);
+
+        if (selectedWorkoutId.HasValue && selectedWorkoutId > 0)
+        {
+            query = query.Where(x => x.WorkoutSessionId == selectedWorkoutId.Value);
+        }
+
+        exercises = await query
+            .OrderByDescending(x => x.LoggedUtc)
+            .ToListAsync();
+    }
+
+    private async Task CreateExercise()
+    {
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(exerciseName)) return;
+
+        int workoutIdToUse;
+
+        if (selectedWorkoutId == CreateNewWorkoutOption)
+        {
+            if (string.IsNullOrWhiteSpace(newWorkoutName)) return;
+
+            var newWorkout = new WorkoutSession
+            {
+                UserId = userId,
+                Name = newWorkoutName.Trim(),
+                StartedUtc = DateTime.UtcNow
+            };
+
+            Db.WorkoutSessions.Add(newWorkout);
+            await Db.SaveChangesAsync();
+
+            workoutIdToUse = newWorkout.Id;
+            selectedWorkoutId = workoutIdToUse;
+            newWorkoutName = "";
+
+            await LoadSavedWorkouts();
+        }
+        else if (selectedWorkoutId.HasValue && selectedWorkoutId.Value > 0)
+        {
+            workoutIdToUse = selectedWorkoutId.Value;
+        }
+        else
+        {
+            return;
+        }
+
+        var item = new ExerciseLog
+        {
+            UserId = userId,
+            WorkoutSessionId = workoutIdToUse,
+            ExerciseName = exerciseName.Trim(),
+            Sets = sets,
+            Reps = reps,
+            WeightLbs = weightLbs,
+            LoggedUtc = DateTime.UtcNow
+        };
+
+        Db.ExerciseLogs.Add(item);
+        await Db.SaveChangesAsync();
+
+        exerciseName = "";
+        sets = 3;
+        reps = 10;
+        weightLbs = 0;
+
+        await LoadExercises();
+    }
+
+    private void BeginEdit(ExerciseLog ex)
+    {
+        editingExerciseId = ex.Id;
+        editExerciseName = ex.ExerciseName;
+        editSets = ex.Sets;
+        editReps = ex.Reps;
+        editWeightLbs = ex.WeightLbs;
+    }
+
+    private void CancelEdit()
+    {
+        editingExerciseId = null;
+    }
+
+    private async Task SaveEdit(int id)
+    {
+        var item = await Db.ExerciseLogs.FindAsync(id);
+        if (item is null) return;
+
+        item.ExerciseName = editExerciseName.Trim();
+        item.Sets = editSets;
+        item.Reps = editReps;
+        item.WeightLbs = editWeightLbs;
+
+        await Db.SaveChangesAsync();
+        editingExerciseId = null;
+        await LoadExercises();
+    }
+
+    private async Task DeleteExercise(int id)
+    {
+        var item = await Db.ExerciseLogs.FindAsync(id);
+        if (item is null) return;
+
+        Db.ExerciseLogs.Remove(item);
+        await Db.SaveChangesAsync();
+        await LoadExercises();
+    }
+
+    private async Task OnWorkoutSelectionChanged(int? value)
+{
+    selectedWorkoutId = value;
+    await LoadExercises();
+}
+
+private async Task LoadSavedWorkouts()
+{
+    if (string.IsNullOrWhiteSpace(userId)) return;
+
+    savedWorkouts = await Db.WorkoutSessions
+        .Where(w => w.UserId == userId)
+        .Include(w => w.Exercises)
+        .OrderByDescending(w => w.StartedUtc)
+        .ToListAsync();
+}
+
+private async Task ChooseWorkout(int workoutId)
+{
+    selectedWorkoutId = workoutId;
+    await LoadExercises();
+}
+
+private async Task DeleteWorkout(int workoutId)
+{
+    var workout = await Db.WorkoutSessions
+        .Include(w => w.Exercises)
+        .FirstOrDefaultAsync(w => w.Id == workoutId);
+
+    if (workout is null) return;
+
+    Db.WorkoutSessions.Remove(workout);
+    await Db.SaveChangesAsync();
+
+    if (selectedWorkoutId == workoutId)
+    {
+        selectedWorkoutId = null;
+    }
+
+    await LoadSavedWorkouts();
+    await LoadExercises();
+}
+private void BeginWorkout(int workoutId)
+{
+    NavigationManager.NavigateTo($"/workout-session/{workoutId}");
+}
+    // private int CreateNewWorkoutOption => 0;
+}
