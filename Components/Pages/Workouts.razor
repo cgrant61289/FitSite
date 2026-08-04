@@ -109,12 +109,15 @@
                             @if (workout.Exercises?.Any() == true)
                             {
                                 <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
-                                    @foreach (var item in workout.Exercises)
-                                    {
-                                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small">
-                                            @item.ExerciseName
-                                        </MudChip>
-                                    }
+                                    @foreach (var item in workout.Exercises
+.Where(e => !string.IsNullOrWhiteSpace(e.ExerciseName))
+.DistinctBy(e => e.ExerciseName.Trim(), StringComparer.OrdinalIgnoreCase)
+.OrderBy(e => e.ExerciseName))
+{
+<MudChip T="string" Color="Color.Secondary" Size="Size.Small">
+@item.ExerciseName
+</MudChip>
+}
                                 </MudStack>
                             }
                             else
