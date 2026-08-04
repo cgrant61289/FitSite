@@ -1,0 +1,183 @@
+@page "/dashboard"
+@using FitSite.Data
+@using FitSite.Data.Models
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+@inject HttpClient HttpClient
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@using MudBlazor
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <MudText Typo="Typo.h3" Class="mb-6">Dashboard</MudText>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular IsIndeterminate="true" />
+    }
+    else if (dashboardStats != null)
+    {
+        <MudGrid Spacing="2" Class="mb-6">
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Color="Color.Tertiary">Workouts This Month</MudText>
+                        <MudText Typo="Typo.h4">@dashboardStats.WorkoutsThisMonth</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Color="Color.Tertiary">Calories Burned</MudText>
+                        <MudText Typo="Typo.h4">@dashboardStats.TotalCaloriesThisMonth</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Color="Color.Tertiary">Current Weight</MudText>
+                        <MudText Typo="Typo.h4">@(dashboardStats.CurrentWeight?.ToString("F1") ?? "—") lbs</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Color="Color.Tertiary">Last Workout</MudText>
+                        <MudText Typo="Typo.h4">@(dashboardStats.LastWorkout?.ToString("MMM d") ?? "—")</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="6">
+                <MudCard>
+                    <MudCardHeader>
+                        <MudText Typo="Typo.h6">Recent Workouts</MudText>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (recentWorkouts?.Count > 0)
+                        {
+                            <MudList T="RecentWorkoutDto" Dense="true">
+    @foreach (var workout in recentWorkouts)
+    {
+        <MudListItem T="RecentWorkoutDto">
+            <MudText Typo="Typo.body2">@workout.Name</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                @workout.DurationMinutes min • @workout.CaloriesBurned cal
+            </MudText>
+        </MudListItem>
+    }
+</MudList>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">No workouts yet</MudText>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudCard>
+                    <MudCardHeader>
+                        <MudText Typo="Typo.h6">Personal Records</MudText>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (personalRecords?.Count > 0)
+                        {
+                            <MudList T="PersonalRecordDto" Dense="true">
+    @foreach (var record in personalRecords)
+    {
+        <MudListItem T="PersonalRecordDto">
+            <MudText Typo="Typo.body2">@record.Exercise</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                @record.MaxWeight lbs • @record.MaxReps reps
+            </MudText>
+        </MudListItem>
+    }
+</MudList>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">No exercises logged yet</MudText>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private bool isLoading = true;
+    private DashboardStatsDto? dashboardStats;
+    private List<RecentWorkoutDto>? recentWorkouts;
+    private List<PersonalRecordDto>? personalRecords;
+    private string? userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (userId != null)
+        {
+            await LoadDashboardData();
+        }
+    }
+
+    private async Task LoadDashboardData()
+{
+    try
+    {
+        var statsUrl = Navigation.ToAbsoluteUri($"/api/dashboard/stats/{userId}");
+        var recentUrl = Navigation.ToAbsoluteUri($"/api/dashboard/recent-workouts/{userId}");
+        var recordsUrl = Navigation.ToAbsoluteUri($"/api/dashboard/personal-records/{userId}");
+
+        dashboardStats = await HttpClient.GetFromJsonAsync<DashboardStatsDto>(statsUrl);
+        recentWorkouts = await HttpClient.GetFromJsonAsync<List<RecentWorkoutDto>>(recentUrl);
+        personalRecords = await HttpClient.GetFromJsonAsync<List<PersonalRecordDto>>(recordsUrl);
+    }
+    finally
+    {
+        isLoading = false;
+    }
+} 
+
+    private class DashboardStatsDto
+    {
+        public DateTime? LastWorkout { get; set; }
+        public int WorkoutsThisMonth { get; set; }
+        public long TotalCaloriesThisMonth { get; set; }
+        public decimal? CurrentWeight { get; set; }
+        public List<WeightHistoryDto> WeightHistory { get; set; } = [];
+    }
+
+    private class RecentWorkoutDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public int DurationMinutes { get; set; }
+        public int CaloriesBurned { get; set; }
+        public DateTime? CompletedDate { get; set; }
+    }
+
+    private class PersonalRecordDto
+    {
+        public string Exercise { get; set; } = "";
+        public decimal MaxWeight { get; set; }
+        public int MaxReps { get; set; }
+    }
+
+    private class WeightHistoryDto
+    {
+        public DateTime Date { get; set; }
+        public decimal? Weight { get; set; }
+    }
+}

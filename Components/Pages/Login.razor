@@ -1,0 +1,86 @@
+@page "/login"
+@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using MudBlazor
+@using FitSite.Data.Models
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="mb-6">Sign In</MudText>
+
+           <EditForm Model="loginModel" FormName="login" OnValidSubmit="HandleLogin">
+    <DataAnnotationsValidator />
+
+    <div class="mb-4">
+        <label>Email</label>
+        <InputText @bind-Value="loginModel.Email" class="form-control" />
+        <ValidationMessage For="() => loginModel.Email" />
+    </div>
+
+    <div class="mb-4">
+        <label>Password</label>
+        <InputText @bind-Value="loginModel.Password" type="password" class="form-control" />
+        <ValidationMessage For="() => loginModel.Password" />
+    </div>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" ButtonType="ButtonType.Submit" Class="mb-4">
+        Sign In
+    </MudButton>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorMessage</MudAlert>
+    }
+</EditForm>
+
+            <MudDivider Class="my-6" />
+
+            <MudText Align="Align.Center">
+                Don't have an account? <MudLink Href="/register">Register here</MudLink>
+            </MudText>
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    [SupplyParameterFromForm]
+private LoginModel loginModel { get; set; } = new();
+
+private class LoginModel
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = "";
+
+    [Required]
+    public string Password { get; set; } = "";
+}
+
+protected override void OnParametersSet()
+{
+    loginModel ??= new LoginModel();
+}
+    private string errorMessage = "";
+
+    private async Task HandleLogin()
+    {
+        if (loginModel is null) return;
+        var result = await SignInManager.PasswordSignInAsync(loginModel.Email, loginModel.Password, false, false);
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo("/dashboard", forceLoad: true);
+        }
+        else
+        {
+            errorMessage = "Invalid email or password.";
+        }
+    }
+}

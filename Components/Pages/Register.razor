@@ -1,0 +1,126 @@
+@page "/register"
+@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using MudBlazor
+@using FitSite.Data.Models
+@using Microsoft.AspNetCore.Components.Forms
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="mb-6">Create Account</MudText>
+
+            <EditForm Model="registerModel" FormName="register" OnValidSubmit="HandleRegister">
+    <DataAnnotationsValidator />
+    <div class="mb-4">
+        <label class="form-label">Email</label>
+        <InputText @bind-Value="registerModel.Email" class="form-control" />
+        <ValidationMessage For="() => registerModel.Email" />
+    </div>
+
+    <div class="mb-4">
+        <label class="form-label">First Name</label>
+        <InputText @bind-Value="registerModel.FirstName" class="form-control" />
+        <ValidationMessage For="() => registerModel.FirstName" />
+    </div>
+
+    <div class="mb-4">
+        <label class="form-label">Last Name</label>
+        <InputText @bind-Value="registerModel.LastName" class="form-control" />
+        <ValidationMessage For="() => registerModel.LastName" />
+    </div>
+
+    <div class="mb-4">
+        <label class="form-label">Password</label>
+        <InputText @bind-Value="registerModel.Password" type="password" class="form-control" />
+        <ValidationMessage For="() => registerModel.Password" />
+    </div>
+
+    <div class="mb-4">
+        <label class="form-label">Confirm Password</label>
+        <InputText @bind-Value="registerModel.ConfirmPassword" type="password" class="form-control" />
+        <ValidationMessage For="() => registerModel.ConfirmPassword" />
+    </div>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" ButtonType="ButtonType.Submit" Class="mb-4">
+        Register
+    </MudButton>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorMessage</MudAlert>
+    }
+</EditForm>
+
+            <MudDivider Class="my-6" />
+
+            <MudText Align="Align.Center">
+                Already have an account? <MudLink Href="/login">Sign in here</MudLink>
+            </MudText>
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+[SupplyParameterFromForm]
+private RegisterModel? registerModel { get; set; }
+
+protected override void OnParametersSet()
+{
+    registerModel ??= new RegisterModel();
+}
+    private string errorMessage = "";
+
+    private class RegisterModel
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = "";
+
+    [Required]
+    public string FirstName { get; set; } = "";
+
+    [Required]
+    public string LastName { get; set; } = "";
+
+    [Required]
+    public string Password { get; set; } = "";
+
+    [Required]
+    public string ConfirmPassword { get; set; } = "";
+}
+
+    private async Task HandleRegister()
+    {
+        if (registerModel is null) return;
+        if (registerModel.Password != registerModel.ConfirmPassword)
+        {
+            errorMessage = "Passwords do not match.";
+            return;
+        }
+
+        var user = new ApplicationUser
+        {
+            UserName = registerModel.Email,
+            Email = registerModel.Email,
+            FirstName = registerModel.FirstName,
+            LastName = registerModel.LastName
+        };
+
+        var result = await UserManager.CreateAsync(user, registerModel.Password);
+        if (result.Succeeded)
+        {
+            await SignInManager.SignInAsync(user, false);
+            Navigation.NavigateTo("/dashboard", forceLoad: true);
+        }
+        else
+        {
+            errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
+        }
+    }
+}
