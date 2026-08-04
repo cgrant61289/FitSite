@@ -9,16 +9,20 @@
 
 <MudNavMenu>
     <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-    <MudNavLink Href="/dashboard" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+    
     <AuthorizeView>
         <Authorized>
     <MudDivider Class="my-2" />
+    <MudNavLink Href="/dashboard" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+        <MudDivider Class="my-2" />
+        <div style="display: flex; justify-content: center;">
     <MudButton Variant="Variant.Text"
            Color="Color.Inherit"
            StartIcon="@Icons.Material.Filled.Logout"
            OnClick="@(() => Navigation.NavigateTo("/logout", forceLoad: true))">
     Logout
 </MudButton>
+</div>
 </Authorized>
 <NotAuthorized>
     <MudDivider Class="my-2" />

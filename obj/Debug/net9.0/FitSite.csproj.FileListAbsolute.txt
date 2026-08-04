@@ -213,3 +213,4 @@ C:\Users\cgran\Documents\Workfiles\fitsite\FitSite\bin\Debug\net9.0\Microsoft.As
 C:\Users\cgran\Documents\Workfiles\fitsite\FitSite\bin\Debug\net9.0\Microsoft.AspNetCore.Identity.EntityFrameworkCore.dll
 C:\Users\cgran\Documents\Workfiles\fitsite\FitSite\bin\Debug\net9.0\Microsoft.Extensions.Identity.Core.dll
 C:\Users\cgran\Documents\Workfiles\fitsite\FitSite\bin\Debug\net9.0\Microsoft.Extensions.Identity.Stores.dll
+C:\Users\cgran\Documents\Workfiles\fitsite\FitSite\obj\Debug\net9.0\FitSite.sourcelink.json
