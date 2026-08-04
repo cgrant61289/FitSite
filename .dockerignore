@@ -2,6 +2,6 @@
 .vs
 .vscode
 node_modules
-FitSite/bin
-FitSite/obj
+bin
+obj
 FitSite/.DS_Store

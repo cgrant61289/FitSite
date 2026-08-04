@@ -1,16 +1,15 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-COPY FitSite.csproj FitSite/
+COPY FitSite.csproj ./
 RUN dotnet restore FitSite.csproj
 
-COPY FitSite/ FitSite/
-WORKDIR /src/FitSite
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+COPY . ./
+RUN dotnet publish FitSite.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=build /app/publish ./
 
 RUN mkdir -p /var/data
 
