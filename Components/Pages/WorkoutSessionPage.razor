@@ -44,7 +44,7 @@
                                        Color="Color.Primary"
                                        FullWidth="true"
                                        OnClick="StartWorkout"
-                                       Disabled="@(isWorkoutStarted || exerciseNames.Count == 0)">
+                                       Disabled="@(isWorkoutStarted || exercisePlan.Count == 0)">
                                 Begin Workout
                             </MudButton>
                         </MudItem>
@@ -79,14 +79,16 @@
                                                  Variant="Variant.Outlined" />
                             </MudItem>
                         </MudGrid>
-
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   FullWidth="true"
-                                   OnClick="RecordSet"
-                                   Disabled="@(isResting || string.IsNullOrWhiteSpace(currentExerciseName))">
-                            End Set
-                        </MudButton>
+<MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-2">
+    Set @(completedSetsForCurrentExercise + 1) of @exercisePlan[currentExerciseIndex].TargetSets
+</MudText>
+                                            <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               OnClick="RecordSet"
+                               Disabled="@(isResting || workoutComplete || string.IsNullOrWhiteSpace(currentExerciseName))">
+                        End Set
+                    </MudButton>
 
                         @if (isResting)
                         {
@@ -126,12 +128,30 @@
                         }
                     </MudCardContent>
                 </MudCard>
+
+                @if (workoutComplete)
+                {
+                    <MudAlert Severity="Severity.Success" Class="mt-3">
+                        Workout complete. Great work.
+                    </MudAlert>
+
+                    <MudButton Variant="Variant.Filled"
+               Color="Color.Success"
+               Class="mt-2"
+               OnClick="EndWorkoutAndReturnToDashboard">
+                        End Workout Session
+                    </MudButton>
+                }
             }
         }
     </MudStack>
 </MudContainer>
 
 @code {
+    private record ExercisePlanItem(string Name, int TargetSets, int DefaultReps, decimal DefaultWeight);
+private List<ExercisePlanItem> exercisePlan = [];
+private int completedSetsForCurrentExercise;
+private bool workoutComplete;
     [Parameter] public int WorkoutId { get; set; }
 
     private string? userId;
@@ -168,38 +188,36 @@
             .ThenBy(e => e.Id)
             .ToListAsync();
 
-        exerciseNames = workoutExercises
-            .Select(e => e.ExerciseName)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        exercisePlan = workoutExercises
+            .GroupBy(e => e.ExerciseName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var first = g.OrderBy(x => x.LoggedUtc).ThenBy(x => x.Id).First();
+                var targetSets = Math.Max(1, first.Sets);
+                return new ExercisePlanItem(first.ExerciseName, targetSets, first.Reps, first.WeightLbs);
+            })
             .ToList();
+
+        exerciseNames = exercisePlan.Select(p => p.Name).ToList();
     }
 
     private async Task StartWorkout()
-    {
-        if (workout is null || exerciseNames.Count == 0) return;
+{
+    if (workout is null || exercisePlan.Count == 0) return;
 
-        currentExerciseIndex = 0;
-        currentExerciseName = exerciseNames[0];
-        isWorkoutStarted = true;
-        isResting = false;
+    currentExerciseIndex = 0;
+    isWorkoutStarted = true;
+    isResting = false;
+    workoutComplete = false;
 
-        await LoadHistoricalEntries();
+    var current = exercisePlan[currentExerciseIndex];
+    currentExerciseName = current.Name;
+    currentSetReps = current.DefaultReps;
+    currentSetWeight = current.DefaultWeight;
+    completedSetsForCurrentExercise = 0;
 
-        var planEntry = workoutExercises.FirstOrDefault(e =>
-            string.Equals(e.ExerciseName, currentExerciseName, StringComparison.OrdinalIgnoreCase));
-
-        if (planEntry is not null)
-        {
-            currentSetReps = planEntry.Reps;
-            currentSetWeight = planEntry.WeightLbs;
-        }
-        else
-        {
-            currentSetReps = 10;
-            currentSetWeight = 0;
-        }
-    }
+    await LoadHistoricalEntries();
+}
 
     private async Task RecordSet()
     {
@@ -220,7 +238,34 @@
         await Db.SaveChangesAsync();
 
         await LoadHistoricalEntries();
-        await StartRestTimer();
+        completedSetsForCurrentExercise++;
+
+var current = exercisePlan[currentExerciseIndex];
+var reachedTarget = completedSetsForCurrentExercise >= current.TargetSets;
+
+if (reachedTarget)
+{
+    if (currentExerciseIndex < exercisePlan.Count - 1)
+    {
+        currentExerciseIndex++;
+        var next = exercisePlan[currentExerciseIndex];
+
+        currentExerciseName = next.Name;
+        currentSetReps = next.DefaultReps;
+        currentSetWeight = next.DefaultWeight;
+        completedSetsForCurrentExercise = 0;
+
+        await LoadHistoricalEntries();
+    }
+    else
+    {
+        workoutComplete = true;
+        isResting = false;
+        return;
+    }
+}
+
+await StartRestTimer();
     }
 
     private async Task StartRestTimer()
@@ -274,4 +319,8 @@
     {
         NavigationManager.NavigateTo("/workouts");
     }
+    private void EndWorkoutAndReturnToDashboard()
+{
+    NavigationManager.NavigateTo("/dashboard");
+}
 }
