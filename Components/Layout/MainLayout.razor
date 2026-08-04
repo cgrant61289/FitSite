@@ -3,13 +3,16 @@
 @using MudBlazor
 
 <CascadingAuthenticationState>
-    <MudThemeProvider />
+    <MudThemeProvider Theme="_theme" />
     <MudDialogProvider />
     <MudSnackbarProvider />
     <MudPopoverProvider />
     <MudLayout>
         <MudAppBar Elevation="1">
-            <MudIconButton Icon="@Icons.Material.Filled.Menu" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+               Edge="Edge.Start"
+               Color="Color.Secondary"
+               OnClick="@((e) => DrawerToggle())" />
             <MudText Typo="Typo.h6">FitSite</MudText>
             <MudSpacer />
         </MudAppBar>
@@ -32,4 +35,30 @@
     {
         _drawerOpen = !_drawerOpen;
     }
+    private readonly MudTheme _theme = new()
+{
+    PaletteLight = new PaletteLight
+    {
+        Primary = "#0A5C36",          // performance green
+        Secondary = "#FF6B00",        // energy orange
+        Tertiary = "#0057D9",         // electric blue accent
+
+        Background = "#F4F7FA",       // cool light gray
+        Surface = "#FFFFFF",
+
+        AppbarBackground = "#111418", // near black header
+        AppbarText = "#FFFFFF",
+
+        DrawerBackground = "#0F141A", // dark nav for contrast
+        DrawerText = "#F3F6FA",
+
+        TextPrimary = "#101418",
+        TextSecondary = "#3F4A56",
+
+        Success = "#16A34A",
+        Warning = "#F59E0B",
+        Error = "#DC2626",
+        Info = "#0284C7"
+    }
+};
 }

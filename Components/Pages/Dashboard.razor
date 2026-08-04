@@ -61,24 +61,36 @@
                         <MudText Typo="Typo.h6">Recent Workouts</MudText>
                     </MudCardHeader>
                     <MudCardContent>
-                        @if (recentWorkouts?.Count > 0)
-                        {
-                            <MudList T="RecentWorkoutDto" Dense="true">
-    @foreach (var workout in recentWorkouts)
-    {
-        <MudListItem T="RecentWorkoutDto">
-            <MudText Typo="Typo.body2">@workout.Name</MudText>
-            <MudText Typo="Typo.caption" Color="Color.Tertiary">
-                @workout.DurationMinutes min • @workout.CaloriesBurned cal
-            </MudText>
-        </MudListItem>
-    }
-</MudList>
-                        }
-                        else
-                        {
-                            <MudText Typo="Typo.body2" Color="Color.Tertiary">No workouts yet</MudText>
-                        }
+                        @if (exerciseProgressions?.Count > 0)
+{
+@foreach (var exercise in exerciseProgressions)
+{
+<MudPaper Class="pa-3 mb-3" Outlined="true">
+<MudText Typo="Typo.subtitle2" Class="mb-2">@exercise.Exercise</MudText>
+
+@if (exercise.Points.Count > 1)
+{
+<MudChart T="double" ChartType="ChartType.Line" ChartSeries="@BuildSeries(exercise)" XAxisLabels="@BuildLabels(exercise)" Width="100%" Height="250px" />
+}
+else if (exercise.Points.Count == 1)
+{
+<MudText Typo="Typo.body2" Color="Color.Tertiary">
+Only one data point so far: @exercise.Points[0].WeightLbs lbs
+</MudText>
+}
+else
+{
+<MudText Typo="Typo.body2" Color="Color.Tertiary">
+No data yet.
+</MudText>
+}
+</MudPaper>
+}
+}
+else
+{
+<MudText Typo="Typo.body2" Color="Color.Tertiary">No exercise progression data yet</MudText>
+}
                     </MudCardContent>
                 </MudCard>
             </MudItem>
@@ -115,6 +127,7 @@
 </MudContainer>
 
 @code {
+    private List<ExerciseProgressionDto>? exerciseProgressions;
     private bool isLoading = true;
     private DashboardStatsDto? dashboardStats;
     private List<RecentWorkoutDto>? recentWorkouts;
@@ -139,7 +152,9 @@
         var statsUrl = Navigation.ToAbsoluteUri($"/api/dashboard/stats/{userId}");
         var recentUrl = Navigation.ToAbsoluteUri($"/api/dashboard/recent-workouts/{userId}");
         var recordsUrl = Navigation.ToAbsoluteUri($"/api/dashboard/personal-records/{userId}");
-
+        var progressionUrl = Navigation.ToAbsoluteUri($"/api/dashboard/exercise-progression/{userId}");
+        
+        exerciseProgressions = await HttpClient.GetFromJsonAsync<List<ExerciseProgressionDto>>(progressionUrl);
         dashboardStats = await HttpClient.GetFromJsonAsync<DashboardStatsDto>(statsUrl);
         recentWorkouts = await HttpClient.GetFromJsonAsync<List<RecentWorkoutDto>>(recentUrl);
         personalRecords = await HttpClient.GetFromJsonAsync<List<PersonalRecordDto>>(recordsUrl);
@@ -180,4 +195,34 @@
         public DateTime Date { get; set; }
         public decimal? Weight { get; set; }
     }
+    private class ExerciseProgressionDto
+{
+public string Exercise { get; set; } = "";
+public List<ExerciseProgressionPointDto> Points { get; set; } = [];
+}
+
+private class ExerciseProgressionPointDto
+{
+public DateTime LoggedUtc { get; set; }
+public decimal WeightLbs { get; set; }
+}
+
+private List<ChartSeries<double>> BuildSeries(ExerciseProgressionDto exercise)
+{
+return new List<ChartSeries<double>>
+{
+new ChartSeries<double>
+{
+Name = "Weight (lbs)",
+Data = exercise.Points.Select(p => (double)p.WeightLbs).ToArray()
+}
+};
+}
+
+private string[] BuildLabels(ExerciseProgressionDto exercise)
+{
+return exercise.Points
+.Select(p => p.LoggedUtc.ToLocalTime().ToString("M/d"))
+.ToArray();
+}
 }

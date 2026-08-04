@@ -124,6 +124,39 @@ app.MapGet("/api/dashboard/personal-records/{userId}", async (string userId, App
     return Results.Ok(result);
 });
 
+app.MapGet("/api/dashboard/exercise-progression/{userId}", async (string userId, AppDbContext db) =>
+{
+    var points = await db.ExerciseLogs
+        .Where(e => e.UserId == userId)
+        .OrderBy(e => e.LoggedUtc)
+        .Select(e => new
+        {
+            e.ExerciseName,
+            e.LoggedUtc,
+            e.WeightLbs
+        })
+        .ToListAsync();
+
+    var grouped = points
+        .GroupBy(p => p.ExerciseName)
+        .Select(g => new
+        {
+            exercise = g.Key,
+            points = g
+                .OrderBy(x => x.LoggedUtc)
+                .Select(x => new
+                {
+                    loggedUtc = x.LoggedUtc,
+                    weightLbs = x.WeightLbs
+                })
+                .ToList()
+        })
+        .OrderBy(x => x.exercise)
+        .ToList();
+
+    return Results.Ok(grouped);
+});
+
 app.MapGet("/logout", async (SignInManager<ApplicationUser> signInManager) =>
 {
     await signInManager.SignOutAsync();
