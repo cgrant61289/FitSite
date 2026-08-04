@@ -1,0 +1,7 @@
+.git
+.vs
+.vscode
+node_modules
+FitSite/bin
+FitSite/obj
+FitSite/.DS_Store
