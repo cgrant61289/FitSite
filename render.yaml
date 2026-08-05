@@ -7,8 +7,11 @@ services:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: ConnectionStrings__DefaultConnection
-        value: Data Source=/var/data/fitsite.db
-    disks:
-      - name: fitsite-data
-        mountPath: /var/data
-        sizeGB: 1
+        fromDatabase:
+          name: fitsite-db
+          property: connectionString
+
+databases:
+  - name: fitsite-db
+    databaseName: fitsite
+    user: fitsite_user
