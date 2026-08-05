@@ -16,7 +16,8 @@
     <MudText Typo="Typo.h4" Class="mb-4">Workouts</MudText>
 
     <!-- Create -->
-    <MudCard Class="mb-4">
+<MudExpansionPanels MultiExpansion="true">
+    <MudExpansionPanel Text="Add Exercise">
         <MudCardContent>
             <MudText Typo="Typo.subtitle1" Class="mb-3">Add Exercise</MudText>
 
@@ -49,7 +50,7 @@
                                      Variant="Variant.Outlined" />
                 </MudItem>
             </MudGrid>
-        <MudCardContent>
+
             <MudText Typo="Typo.subtitle1" Class="mb-3">Workout Target</MudText>
 
             <MudSelect T="int?" Label="Save To Workout"
@@ -73,7 +74,7 @@
                           Variant="Variant.Outlined"
                           FullWidth="true" />
             }
-        </MudCardContent>
+
             <MudButton Variant="Variant.Filled"
                        Color="Color.Primary"
                        FullWidth="true"
@@ -82,7 +83,8 @@
                 Add
             </MudButton>
         </MudCardContent>
-    </MudCard>
+    </MudExpansionPanel>
+</MudExpansionPanels>
 
     <!-- Read + Update + Delete -->
     <MudCard>
