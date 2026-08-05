@@ -178,7 +178,12 @@ app.MapRazorComponents<App>()
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    var cs = builder.Configuration.GetConnectionString("DefaultConnection") ?? "";
+
+    if (cs.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+        db.Database.Migrate();        // Render/Postgres
+    else
+        db.Database.EnsureCreated();  // Local SQLite
 }
 
 app.Run();
