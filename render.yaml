@@ -10,6 +10,8 @@ services:
         fromDatabase:
           name: fitsite-db
           property: connectionString
+      - key: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+        value: "false"
 
 databases:
   - name: fitsite-db
