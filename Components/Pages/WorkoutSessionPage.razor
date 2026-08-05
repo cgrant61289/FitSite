@@ -34,10 +34,11 @@
                     <MudGrid Spacing="2" Class="mb-3">
                         <MudItem xs="8">
                             <MudNumericField T="int"
-                                             Label="Rest Time (seconds)"
-                                             @bind-Value="restSeconds"
-                                             Min="5"
-                                             Variant="Variant.Outlined" />
+                                         Label="Rest Time (seconds)"
+                                         Value="restSeconds"
+                                         ValueChanged="@(value => restSeconds = value)"
+                                         Min="5"
+                                         Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="4">
                             <MudButton Variant="Variant.Filled"
@@ -66,17 +67,19 @@
                         <MudGrid Spacing="2" Class="mb-3">
                             <MudItem xs="6">
                                 <MudNumericField T="int"
-                                                 Label="Reps"
-                                                 @bind-Value="currentSetReps"
-                                                 Min="1"
-                                                 Variant="Variant.Outlined" />
+                 Label="Reps"
+                 Value="currentSetReps"
+                 ValueChanged="@(value => currentSetReps = value)"
+                 Min="1"
+                 Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="6">
                                 <MudNumericField T="decimal"
-                                                 Label="Weight (lbs)"
-                                                 @bind-Value="currentSetWeight"
-                                                 Min="0"
-                                                 Variant="Variant.Outlined" />
+                 Label="Weight (lbs)"
+                 Value="currentSetWeight"
+                 ValueChanged="@(value => currentSetWeight = value)"
+                 Min="0"
+                 Variant="Variant.Outlined" />
                             </MudItem>
                         </MudGrid>
 <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-2">
@@ -91,11 +94,15 @@
                     </MudButton>
 
                         @if (isResting)
-                        {
-                            <MudAlert Severity="Severity.Info" Class="mt-3">
-                                Resting for @remainingRestSeconds second@(remainingRestSeconds == 1 ? "" : "s")...
-                            </MudAlert>
-                        }
+{
+    <div class="rest-overlay" role="status" aria-live="polite">
+        <div class="rest-overlay-content">
+            <div class="rest-label">Rest</div>
+            <div class="rest-seconds">@remainingRestSeconds</div>
+            <div class="rest-unit">seconds</div>
+        </div>
+    </div>
+}
                     </MudCardContent>
                 </MudCard>
 
@@ -188,17 +195,21 @@ private bool workoutComplete;
             .ThenBy(e => e.Id)
             .ToListAsync();
 
-        exercisePlan = workoutExercises
-            .GroupBy(e => e.ExerciseName.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(g =>
-            {
-                var first = g.OrderBy(x => x.LoggedUtc).ThenBy(x => x.Id).First();
-                var targetSets = Math.Max(1, first.Sets);
-                return new ExercisePlanItem(first.ExerciseName, targetSets, first.Reps, first.WeightLbs);
-            })
-            .ToList();
+        var planItems = await Db.WorkoutPlanItems
+            .Where(p => p.WorkoutSessionId == WorkoutId && p.UserId == userId)
+            .OrderBy(p => p.DisplayOrder)
+            .ThenBy(p => p.Id)
+            .ToListAsync();
 
-        exerciseNames = exercisePlan.Select(p => p.Name).ToList();
+exercisePlan = planItems
+    .Select(p => new ExercisePlanItem(
+        p.ExerciseName.Trim(),
+        Math.Max(1, p.Sets),
+        Math.Max(1, p.Reps),
+        p.WeightLbs))
+    .ToList();
+
+exerciseNames = exercisePlan.Select(p => p.Name).ToList();
     }
 
     private async Task StartWorkout()
@@ -324,3 +335,46 @@ await StartRestTimer();
     NavigationManager.NavigateTo("/dashboard");
 }
 }
+
+<style>
+.rest-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+
+.rest-overlay-content {
+    text-align: center;
+    color: #ffffff;
+    padding: 1rem;
+}
+
+.rest-label {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.92;
+    margin-bottom: 0.35rem;
+}
+
+.rest-seconds {
+    font-size: clamp(4rem, 16vw, 9rem);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    text-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.rest-unit {
+    margin-top: 0.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0.85;
+}
+</style>

@@ -11,12 +11,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkoutSession> WorkoutSessions => Set<WorkoutSession>();
     public DbSet<ExerciseLog> ExerciseLogs => Set<ExerciseLog>();
     public DbSet<ProgressEntry> ProgressEntries => Set<ProgressEntry>();
+    public DbSet<WorkoutPlanItem> WorkoutPlanItems => Set<WorkoutPlanItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Configure relationships
         modelBuilder.Entity<WorkoutSession>()
             .HasOne(w => w.User)
             .WithMany(u => u.WorkoutSessions)
@@ -40,5 +40,20 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(p => p.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WorkoutPlanItem>()
+            .HasOne(p => p.WorkoutSession)
+            .WithMany(w => w.PlanItems)
+            .HasForeignKey(p => p.WorkoutSessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WorkoutPlanItem>()
+            .HasOne(p => p.User)
+            .WithMany(u => u.WorkoutPlanItems)
+            .HasForeignKey(p => p.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<WorkoutPlanItem>()
+            .HasIndex(p => new { p.WorkoutSessionId, p.DisplayOrder });
     }
 }

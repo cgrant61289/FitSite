@@ -21,7 +21,7 @@
         <MudCardContent>
             <MudText Typo="Typo.subtitle1" Class="mb-3">Add Exercise</MudText>
 
-            <MudTextField @bind-Value="exerciseName"
+            <MudTextField T="string" @bind-Value="exerciseName"
                           Label="Exercise Name"
                           Variant="Variant.Outlined"
                           FullWidth="true"
@@ -53,23 +53,23 @@
 
             <MudText Typo="Typo.subtitle1" Class="mb-3">Workout Target</MudText>
 
-            <MudSelect T="int?" Label="Save To Workout"
+            <MudSelect T="int" Label="Save To Workout"
                    Variant="Variant.Outlined"
                    Value="selectedWorkoutId"
                    ValueChanged="OnWorkoutSelectionChanged"
                    FullWidth="true"
                    Class="mb-3">
-                <MudSelectItem T="int?" Value="null">-- Select Workout --</MudSelectItem>
+                <MudSelectItem T="int" Value="0">-- Select Workout --</MudSelectItem>
                 @foreach (var w in savedWorkouts)
                 {
-                    <MudSelectItem T="int?" Value="@w.Id">@w.Name</MudSelectItem>
+                    <MudSelectItem T="int" Value="@w.Id">@w.Name</MudSelectItem>
                 }
-                <MudSelectItem T="int?" Value="@CreateNewWorkoutOption">+ Create New Workout</MudSelectItem>
+                <MudSelectItem T="int" Value="@CreateNewWorkoutOption">+ Create New Workout</MudSelectItem>
             </MudSelect>
 
             @if (selectedWorkoutId == CreateNewWorkoutOption)
             {
-                <MudTextField @bind-Value="newWorkoutName"
+                <MudTextField T="string" @bind-Value="newWorkoutName"
                           Label="New Workout Name"
                           Variant="Variant.Outlined"
                           FullWidth="true" />
@@ -116,7 +116,7 @@
 .DistinctBy(e => e.ExerciseName.Trim(), StringComparer.OrdinalIgnoreCase)
 .OrderBy(e => e.ExerciseName))
 {
-<MudChip T="string" Color="Color.Secondary" Size="Size.Small">
+<MudChip T="string" Value="@item.ExerciseName" Color="Color.Secondary" Size="Size.Small">
 @item.ExerciseName
 </MudChip>
 }
@@ -150,6 +150,13 @@
                                            OnClick="@(() => DeleteWorkout(workout.Id))">
                                     Delete
                                 </MudButton>
+
+                                <MudButton Size="Size.Small"
+                                           Variant="Variant.Text"
+                                           Color="Color.Secondary"
+                                           OnClick="@(() => OpenBuilder(workout.Id))">
+                                    Builder
+                                </MudButton>
                             </MudStack>
                         </MudStack>
                     </MudExpansionPanel>
@@ -163,7 +170,7 @@
 @code {
     private const int CreateNewWorkoutOption = -1;
 private List<WorkoutSession> savedWorkouts = [];
-private int? selectedWorkoutId;
+private int selectedWorkoutId;
 private string newWorkoutName = "";
     private string? userId;
 
@@ -199,9 +206,9 @@ private string newWorkoutName = "";
         var query = Db.ExerciseLogs
             .Where(x => x.UserId == userId);
 
-        if (selectedWorkoutId.HasValue && selectedWorkoutId > 0)
+        if (selectedWorkoutId > 0)
         {
-            query = query.Where(x => x.WorkoutSessionId == selectedWorkoutId.Value);
+            query = query.Where(x => x.WorkoutSessionId == selectedWorkoutId);
         }
 
         exercises = await query
@@ -210,61 +217,99 @@ private string newWorkoutName = "";
     }
 
     private async Task CreateExercise()
+{
+    if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(exerciseName))
+        return;
+
+    int workoutIdToUse;
+
+    if (selectedWorkoutId == CreateNewWorkoutOption)
     {
-        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(exerciseName)) return;
-
-        int workoutIdToUse;
-
-        if (selectedWorkoutId == CreateNewWorkoutOption)
-        {
-            if (string.IsNullOrWhiteSpace(newWorkoutName)) return;
-
-            var newWorkout = new WorkoutSession
-            {
-                UserId = userId,
-                Name = newWorkoutName.Trim(),
-                StartedUtc = DateTime.UtcNow
-            };
-
-            Db.WorkoutSessions.Add(newWorkout);
-            await Db.SaveChangesAsync();
-
-            workoutIdToUse = newWorkout.Id;
-            selectedWorkoutId = workoutIdToUse;
-            newWorkoutName = "";
-
-            await LoadSavedWorkouts();
-        }
-        else if (selectedWorkoutId.HasValue && selectedWorkoutId.Value > 0)
-        {
-            workoutIdToUse = selectedWorkoutId.Value;
-        }
-        else
-        {
+        if (string.IsNullOrWhiteSpace(newWorkoutName))
             return;
-        }
 
-        var item = new ExerciseLog
+        var newWorkout = new WorkoutSession
+        {
+            UserId = userId,
+            Name = newWorkoutName.Trim(),
+            StartedUtc = DateTime.UtcNow
+        };
+
+        Db.WorkoutSessions.Add(newWorkout);
+        await Db.SaveChangesAsync();
+
+        workoutIdToUse = newWorkout.Id;
+        selectedWorkoutId = workoutIdToUse;
+        newWorkoutName = "";
+
+        await LoadSavedWorkouts();
+    }
+    else if (selectedWorkoutId > 0)
+    {
+        workoutIdToUse = selectedWorkoutId;
+    }
+    else
+    {
+        return;
+    }
+
+    var normalizedExerciseName = exerciseName.Trim();
+    var normalizedExerciseNameLower = normalizedExerciseName.ToLower();
+
+    var logEntry = new ExerciseLog
+    {
+        UserId = userId,
+        WorkoutSessionId = workoutIdToUse,
+        ExerciseName = normalizedExerciseName,
+        Sets = sets,
+        Reps = reps,
+        WeightLbs = weightLbs,
+        LoggedUtc = DateTime.UtcNow
+    };
+
+    Db.ExerciseLogs.Add(logEntry);
+
+    var existingPlanItem = await Db.WorkoutPlanItems
+        .FirstOrDefaultAsync(p =>
+            p.UserId == userId &&
+            p.WorkoutSessionId == workoutIdToUse &&
+            p.ExerciseName.ToLower() == normalizedExerciseNameLower);
+
+    if (existingPlanItem is null)
+    {
+        var maxDisplayOrder = await Db.WorkoutPlanItems
+            .Where(p => p.UserId == userId && p.WorkoutSessionId == workoutIdToUse)
+            .Select(p => (int?)p.DisplayOrder)
+            .MaxAsync() ?? 0;
+
+        Db.WorkoutPlanItems.Add(new WorkoutPlanItem
         {
             UserId = userId,
             WorkoutSessionId = workoutIdToUse,
-            ExerciseName = exerciseName.Trim(),
-            Sets = sets,
-            Reps = reps,
-            WeightLbs = weightLbs,
-            LoggedUtc = DateTime.UtcNow
-        };
-
-        Db.ExerciseLogs.Add(item);
-        await Db.SaveChangesAsync();
-
-        exerciseName = "";
-        sets = 3;
-        reps = 10;
-        weightLbs = 0;
-
-        await LoadExercises();
+            ExerciseName = normalizedExerciseName,
+            Sets = Math.Max(1, sets),
+            Reps = Math.Max(1, reps),
+            WeightLbs = Math.Max(0, weightLbs),
+            DisplayOrder = maxDisplayOrder + 1
+        });
     }
+    else
+    {
+        existingPlanItem.ExerciseName = normalizedExerciseName;
+        existingPlanItem.Sets = Math.Max(1, sets);
+        existingPlanItem.Reps = Math.Max(1, reps);
+        existingPlanItem.WeightLbs = Math.Max(0, weightLbs);
+    }
+
+    await Db.SaveChangesAsync();
+
+    exerciseName = "";
+    sets = 3;
+    reps = 10;
+    weightLbs = 0;
+
+    await LoadExercises();
+}
 
     private void BeginEdit(ExerciseLog ex)
     {
@@ -305,7 +350,7 @@ private string newWorkoutName = "";
         await LoadExercises();
     }
 
-    private async Task OnWorkoutSelectionChanged(int? value)
+    private async Task OnWorkoutSelectionChanged(int value)
 {
     selectedWorkoutId = value;
     await LoadExercises();
@@ -341,7 +386,7 @@ private async Task DeleteWorkout(int workoutId)
 
     if (selectedWorkoutId == workoutId)
     {
-        selectedWorkoutId = null;
+        selectedWorkoutId = 0;
     }
 
     await LoadSavedWorkouts();
@@ -350,6 +395,10 @@ private async Task DeleteWorkout(int workoutId)
 private void BeginWorkout(int workoutId)
 {
     NavigationManager.NavigateTo($"/workout-session/{workoutId}");
+}
+private void OpenBuilder(int workoutId)
+{
+    NavigationManager.NavigateTo($"/workout-builder/{workoutId}");
 }
     // private int CreateNewWorkoutOption => 0;
 }

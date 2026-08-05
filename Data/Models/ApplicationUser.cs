@@ -10,4 +10,5 @@ public class ApplicationUser : IdentityUser
 
     public ICollection<WorkoutSession> WorkoutSessions { get; set; } = new List<WorkoutSession>();
     public ICollection<ExerciseLog> ExerciseLogs { get; set; } = new List<ExerciseLog>();
+    public ICollection<WorkoutPlanItem> WorkoutPlanItems { get; set; } = new List<WorkoutPlanItem>();
 }

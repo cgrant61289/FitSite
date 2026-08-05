@@ -1,0 +1,356 @@
+@page "/workout-builder" 
+@page "/workout-builder/{WorkoutId:int}"
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@using FitSite.Data
+@using FitSite.Data.Models
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AppDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+    <MudStack Spacing="2">
+        @if (showingList)
+        {
+            <!-- Workout Picker View -->
+            <MudText Typo="Typo.h4" Class="mb-4">Select a Workout to Build</MudText>
+
+            @if (userWorkouts.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">
+                    No workouts found. <MudLink Href="/workouts">Create one first</MudLink>.
+                </MudAlert>
+            }
+            else
+            {
+                <MudGrid Spacing="2">
+                    @foreach (var w in userWorkouts)
+                    {
+                        <MudItem xs="12">
+                            <MudCard Class="mud-clickable" Style="cursor: pointer;" @onclick="@(() => SelectWorkout(w.Id))">
+                                <MudCardContent>
+                                    <MudStack>
+                                        <MudText Typo="Typo.h6">@w.Name</MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                            Created @w.StartedUtc.ToLocalTime().ToString("MMM d, yyyy")
+                                        </MudText>
+                                        <MudText Typo="Typo.caption">
+                                            @(w.PlanItems?.Count ?? 0) exercise@((w.PlanItems?.Count ?? 0) == 1 ? "" : "s")
+                                        </MudText>
+                                    </MudStack>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        }
+        else if (workout is null)
+        {
+            <!-- Error state if workout not found -->
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => ShowWorkoutList())">
+                Back to Workouts
+            </MudButton>
+            <MudAlert Severity="Severity.Warning">Workout not found.</MudAlert>
+        }
+        else
+        {
+            <!-- Workout Builder View -->
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => ShowWorkoutList())">
+                Back to Workouts
+            </MudButton>
+
+            <MudCard>
+                <MudCardContent>
+                    <MudText Typo="Typo.h5">@workout.Name</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
+                        Build your workout order here. The workout session will follow this exact order.
+                    </MudText>
+
+                    @if (!string.IsNullOrWhiteSpace(statusMessage))
+                    {
+                        <MudAlert Severity="@statusSeverity" Dense="true" Class="mb-3">@statusMessage</MudAlert>
+                    }
+
+                    <MudTable Items="planRows" Dense="true" Hover="true" Bordered="true" Striped="true">
+                        <HeaderContent>
+                            <MudTh>#</MudTh>
+                            <MudTh>Exercise</MudTh>
+                            <MudTh>Sets</MudTh>
+                            <MudTh>Reps</MudTh>
+                            <MudTh>Weight</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="#">
+                                @(planRows.IndexOf(context) + 1)
+                            </MudTd>
+                            <MudTd DataLabel="Exercise">
+                                <MudTextField @bind-Value="context.ExerciseName" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudTd>
+                            <MudTd DataLabel="Sets">
+                                <MudNumericField T="int" @bind-Value="context.Sets" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudTd>
+                            <MudTd DataLabel="Reps">
+                                <MudNumericField T="int" @bind-Value="context.Reps" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudTd>
+                            <MudTd DataLabel="Weight">
+                                <MudNumericField T="decimal" @bind-Value="context.WeightLbs" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudTd>
+                            <MudTd>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp"
+                                                   Disabled="@(planRows.IndexOf(context) == 0)"
+                                                   OnClick="@(() => MoveUp(context))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown"
+                                                   Disabled="@(planRows.IndexOf(context) == planRows.Count - 1)"
+                                                   OnClick="@(() => MoveDown(context))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => RemoveRow(context))" />
+                                </MudStack>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+
+                    <MudDivider Class="my-3" />
+
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">Add Row</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="newExerciseName" Label="Exercise" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="4" md="2">
+                            <MudNumericField T="int" @bind-Value="newSets" Label="Sets" Min="1" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="4" md="2">
+                            <MudNumericField T="int" @bind-Value="newReps" Label="Reps" Min="1" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="4" md="2">
+                            <MudNumericField T="decimal" @bind-Value="newWeight" Label="Weight" Min="0" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" md="2">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       FullWidth="true"
+                                       OnClick="AddRow"
+                                       Disabled="@string.IsNullOrWhiteSpace(newExerciseName)">
+                                Add
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="1" Class="mt-4">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="SavePlan">
+                            Save Plan
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   Disabled="@(planRows.Count == 0 || !WorkoutId.HasValue)"
+                                   OnClick="BeginWorkoutFromBuilder">
+    Begin Workout
+</MudButton>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public int? WorkoutId { get; set; }
+
+    private string? userId;
+    private WorkoutSession? workout;
+    private List<WorkoutPlanItem> planRows = [];
+    private List<WorkoutSession> userWorkouts = [];
+    private bool showingList = false;
+
+    private string newExerciseName = "";
+    private int newSets = 3;
+    private int newReps = 10;
+    private decimal newWeight = 0;
+
+    private string? statusMessage;
+    private Severity statusSeverity = Severity.Info;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        workout = null;
+        planRows = [];
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrWhiteSpace(userId))
+            return;
+
+        // If no WorkoutId provided, show the workout list
+        if (!WorkoutId.HasValue || WorkoutId.Value <= 0)
+        {
+            await LoadWorkoutsList();
+            showingList = true;
+            return;
+        }
+
+        // Load specific workout
+        workout = await Db.WorkoutSessions
+            .Include(w => w.PlanItems)
+            .FirstOrDefaultAsync(w => w.Id == WorkoutId.Value && w.UserId == userId);
+
+        if (workout is null)
+        {
+            showingList = true;
+            await LoadWorkoutsList();
+            return;
+        }
+
+        showingList = false;
+        await LoadPlan();
+    }
+
+    private async Task LoadWorkoutsList()
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return;
+
+        userWorkouts = await Db.WorkoutSessions
+            .Where(w => w.UserId == userId)
+            .Include(w => w.PlanItems)
+            .OrderByDescending(w => w.StartedUtc)
+            .ToListAsync();
+    }
+
+    private async Task LoadPlan()
+    {
+        if (string.IsNullOrWhiteSpace(userId) || !WorkoutId.HasValue)
+            return;
+
+        planRows = await Db.WorkoutPlanItems
+            .Where(x => x.WorkoutSessionId == WorkoutId.Value && x.UserId == userId)
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.Id)
+            .ToListAsync();
+    }
+
+    private void ShowWorkoutList()
+    {
+        showingList = true;
+        workout = null;
+        planRows = [];
+        WorkoutId = null;
+    }
+
+    private async Task SelectWorkout(int workoutId)
+    {
+        WorkoutId = workoutId;
+        await OnParametersSetAsync();
+    }
+
+    private void AddRow()
+    {
+        if (string.IsNullOrWhiteSpace(newExerciseName))
+            return;
+
+        planRows.Add(new WorkoutPlanItem
+        {
+            ExerciseName = newExerciseName.Trim(),
+            Sets = Math.Max(1, newSets),
+            Reps = Math.Max(1, newReps),
+            WeightLbs = Math.Max(0, newWeight),
+            DisplayOrder = planRows.Count + 1
+        });
+
+        newExerciseName = "";
+        newSets = 3;
+        newReps = 10;
+        newWeight = 0;
+    }
+
+    private void RemoveRow(WorkoutPlanItem row)
+    {
+        planRows.Remove(row);
+        Reindex();
+    }
+
+    private void MoveUp(WorkoutPlanItem row)
+    {
+        var idx = planRows.IndexOf(row);
+        if (idx <= 0)
+            return;
+
+        (planRows[idx - 1], planRows[idx]) = (planRows[idx], planRows[idx - 1]);
+        Reindex();
+    }
+
+    private void MoveDown(WorkoutPlanItem row)
+    {
+        var idx = planRows.IndexOf(row);
+        if (idx < 0 || idx >= planRows.Count - 1)
+            return;
+
+        (planRows[idx], planRows[idx + 1]) = (planRows[idx + 1], planRows[idx]);
+        Reindex();
+    }
+
+    private void Reindex()
+    {
+        for (var i = 0; i < planRows.Count; i++)
+            planRows[i].DisplayOrder = i + 1;
+    }
+
+    private async Task SavePlan()
+    {
+        if (string.IsNullOrWhiteSpace(userId) || !WorkoutId.HasValue)
+            return;
+
+        if (planRows.Any(x => string.IsNullOrWhiteSpace(x.ExerciseName) || x.Sets < 1 || x.Reps < 1 || x.WeightLbs < 0))
+        {
+            statusSeverity = Severity.Error;
+            statusMessage = "Each row must have Exercise, Sets >= 1, Reps >= 1, and Weight >= 0.";
+            return;
+        }
+
+        var existing = await Db.WorkoutPlanItems
+            .Where(x => x.WorkoutSessionId == WorkoutId.Value && x.UserId == userId)
+            .ToListAsync();
+
+        Db.WorkoutPlanItems.RemoveRange(existing);
+
+        for (var i = 0; i < planRows.Count; i++)
+        {
+            var row = planRows[i];
+            Db.WorkoutPlanItems.Add(new WorkoutPlanItem
+            {
+                WorkoutSessionId = WorkoutId.Value,
+                UserId = userId,
+                ExerciseName = row.ExerciseName.Trim(),
+                Sets = row.Sets,
+                Reps = row.Reps,
+                WeightLbs = row.WeightLbs,
+                DisplayOrder = i + 1
+            });
+        }
+
+        await Db.SaveChangesAsync();
+        await LoadPlan();
+
+        statusSeverity = Severity.Success;
+        statusMessage = "Workout plan saved.";
+    }
+
+    private void BeginWorkoutFromBuilder()
+    {
+        var workoutId = WorkoutId;
+        if (!workoutId.HasValue)
+            return;
+
+        NavigationManager.NavigateTo($"/workout-session/{workoutId.Value}");
+    }
+}

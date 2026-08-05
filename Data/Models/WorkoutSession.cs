@@ -13,4 +13,5 @@ public class WorkoutSession
 
     public ApplicationUser? User { get; set; }
     public ICollection<ExerciseLog> Exercises { get; set; } = [];
+    public ICollection<WorkoutPlanItem> PlanItems { get; set; } = [];
 }
