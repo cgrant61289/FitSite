@@ -155,6 +155,7 @@
 </MudContainer>
 
 @code {
+    private DateTime sessionStartUtc;
     private record ExercisePlanItem(string Name, int TargetSets, int DefaultReps, decimal DefaultWeight);
 private List<ExercisePlanItem> exercisePlan = [];
 private int completedSetsForCurrentExercise;
@@ -221,6 +222,7 @@ exerciseNames = exercisePlan.Select(p => p.Name).ToList();
     isResting = false;
     workoutComplete = false;
 
+    sessionStartUtc = DateTime.UtcNow;
     var current = exercisePlan[currentExerciseIndex];
     currentExerciseName = current.Name;
     currentSetReps = current.DefaultReps;
@@ -317,10 +319,12 @@ await StartRestTimer();
             return;
         }
 
+        var normalizedCurrent = currentExerciseName.Trim().ToLower();
+
         historicalEntries = await Db.ExerciseLogs
             .Where(e => e.UserId == userId
-                && e.ExerciseName.ToLower() == currentExerciseName.ToLower()
-                && e.WorkoutSessionId != workout!.Id)
+                && e.ExerciseName.Trim().ToLower() == normalizedCurrent
+                && e.LoggedUtc < sessionStartUtc)
             .OrderByDescending(e => e.LoggedUtc)
             .Take(6)
             .ToListAsync();
@@ -349,22 +353,31 @@ await StartRestTimer();
 }
 
 .rest-overlay-content {
-    text-align: center;
+    height: 90vh;
+    width: min(100%, 900px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     color: #ffffff;
+    text-align: center;
     padding: 1rem;
 }
 
 .rest-label {
-    font-size: 1.1rem;
+    font-size: clamp(1rem, 2.5vh, 2rem);
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     opacity: 0.92;
-    margin-bottom: 0.35rem;
 }
 
 .rest-seconds {
-    font-size: clamp(4rem, 16vw, 9rem);
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(8rem, 45vh, 28rem);
     font-weight: 900;
     line-height: 1;
     letter-spacing: -0.03em;
@@ -372,8 +385,7 @@ await StartRestTimer();
 }
 
 .rest-unit {
-    margin-top: 0.5rem;
-    font-size: 1rem;
+    font-size: clamp(1rem, 2.5vh, 2rem);
     font-weight: 700;
     opacity: 0.85;
 }

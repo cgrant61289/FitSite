@@ -8,12 +8,12 @@ services:
         value: Production
       - key: ConnectionStrings__DefaultConnection
         fromDatabase:
-          name: fitsite-db
+          name: fitsitecondordb
           property: connectionString
       - key: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
         value: "false"
 
 databases:
-  - name: fitsite-db
+  - name: fitsitecondordb
     databaseName: fitsite
     user: fitsite_user
