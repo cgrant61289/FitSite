@@ -16,13 +16,22 @@ builder.Services.AddMudServices();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 
+static bool IsPostgresConnectionString(string cs)
+{
+    if (string.IsNullOrWhiteSpace(cs)) return false;
+    var trimmed = cs.Trim();
+    return trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+        || trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
+        || trimmed.Contains("Host=", StringComparison.OrdinalIgnoreCase);
+}
+
 // Add Entity Framework and SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Missing connection string: DefaultConnection");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+    if (IsPostgresConnectionString(connectionString))
         options.UseNpgsql(connectionString);
     else
         options.UseSqlite(connectionString);
@@ -180,10 +189,10 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var cs = builder.Configuration.GetConnectionString("DefaultConnection") ?? "";
 
-    if (cs.Contains("Host=", StringComparison.OrdinalIgnoreCase))
-        db.Database.Migrate();        // Render/Postgres
-    else
-        db.Database.EnsureCreated();  // Local SQLite
+    if (IsPostgresConnectionString(cs))
+    db.Database.Migrate();
+else
+    db.Database.EnsureCreated();
 }
 
 app.Run();
