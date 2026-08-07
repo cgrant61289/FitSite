@@ -29,19 +29,11 @@
                     No workouts found yet. Create one to start building.
                 </MudAlert>
 
-                <MudStack Row="true" Spacing="1" Class="mt-2">
-                    <MudTextField @bind-Value="newWorkoutName"
-                                  Label="Workout Name"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense"
-                                  Style="max-width: 280px;" />
-
-                    <MudButton Variant="Variant.Filled"
-                                 Color="Color.Primary"
-                                 OnClick="CreateAndOpenNewWorkout">
-                        Create New Workout
-                    </MudButton>
-                </MudStack>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="CreateAndOpenNewWorkout">
+                    Create Empty Workout
+                </MudButton>
             }
             else
             {
@@ -409,7 +401,9 @@ private Severity importStatusSeverity = Severity.Info;
         else
         {
             row.DurationMinutes = Math.Max(1, newDurationMinutes ?? 1);
-            row.DistanceMiles = Math.Max(0, newDistanceMiles ?? 0);
+            row.DistanceMiles = newDistanceMiles.HasValue
+    ? Math.Max(0, newDistanceMiles.Value)
+    : null;
         }
 
         planRows.Add(row);
@@ -516,7 +510,9 @@ private Severity importStatusSeverity = Severity.Info;
     }
     private async Task CreateAndOpenNewWorkout()
     {
-        var workout = await CreateWorkoutAsync(newWorkoutName);
+        var workout = await CreateWorkoutAsync(
+            string.IsNullOrWhiteSpace(newWorkoutName) ? null : newWorkoutName);
+
         if (workout is null)
             return;
 
@@ -532,7 +528,7 @@ private Severity importStatusSeverity = Severity.Info;
         var createdWorkout = new WorkoutSession
         {
             UserId = userId,
-            Name = string.IsNullOrWhiteSpace(workoutName) ? "New Workout" : workoutName.Trim(),
+            Name = string.IsNullOrWhiteSpace(workoutName) ? "Untitled Workout" : workoutName.Trim(),
             StartedUtc = DateTime.UtcNow
         };
 

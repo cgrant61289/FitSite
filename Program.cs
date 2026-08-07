@@ -44,8 +44,17 @@ static string ToNpgsqlConnectionString(string cs)
 }
 
 // Add Entity Framework and SQLite
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Missing connection string: DefaultConnection");
+var sqlitePath = builder.Configuration["SqliteDatabasePath"] ?? "/var/data/fitsite.db";
+var connectionString = builder.Configuration["DATABASE_URL"]
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? $"Data Source={sqlitePath}";
+
+if (builder.Environment.IsProduction() &&
+    !IsPostgresConnectionString(connectionString) &&
+    connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+{
+    connectionString = $"Data Source={sqlitePath}";
+}
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {

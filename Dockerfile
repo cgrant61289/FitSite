@@ -14,4 +14,4 @@ COPY --from=build /app/publish ./
 RUN mkdir -p /var/data
 
 EXPOSE 10000
-ENTRYPOINT ["sh", "-c", "ASPNETCORE_URLS=http://0.0.0.0:${PORT:-10000} dotnet FitSite.dll"]
+ENTRYPOINT ["sh", "-c", "ASPNETCORE_URLS=http://0.0.0.0:${PORT:-10000} sh /app/start.sh"]
