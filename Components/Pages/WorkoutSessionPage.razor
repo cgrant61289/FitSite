@@ -50,92 +50,154 @@
                             </MudButton>
                         </MudItem>
                     </MudGrid>
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary"> Rest timer: @FormatMinutesSeconds(restSeconds) </MudText>
                 </MudCardContent>
             </MudCard>
 
-            @if (isWorkoutStarted)
+            @if (isWorkoutStarted && !workoutComplete)
             {
                 <MudCard>
                     <MudCardContent>
                         <MudText Typo="Typo.subtitle1">Current Exercise</MudText>
                         <MudText Typo="Typo.h6" Class="mb-2">@currentExerciseName</MudText>
 
-                        <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
-                            Enter the reps and weight for the current set.
-                        </MudText>
-
-                        <MudGrid Spacing="2" Class="mb-3">
-                            <MudItem xs="6">
-                                <MudNumericField T="int"
-                 Label="Reps"
-                 Value="currentSetReps"
-                 ValueChanged="@(value => currentSetReps = value)"
-                 Min="1"
-                 Variant="Variant.Outlined" />
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudNumericField T="decimal"
-                 Label="Weight (lbs)"
-                 Value="currentSetWeight"
-                 ValueChanged="@(value => currentSetWeight = value)"
-                 Min="0"
-                 Variant="Variant.Outlined" />
-                            </MudItem>
-                        </MudGrid>
-<MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-2">
-    Set @(completedSetsForCurrentExercise + 1) of @exercisePlan[currentExerciseIndex].TargetSets
-</MudText>
-                                            <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               FullWidth="true"
-                               OnClick="RecordSet"
-                               Disabled="@(isResting || workoutComplete || string.IsNullOrWhiteSpace(currentExerciseName))">
-                        End Set
-                    </MudButton>
-
-                        @if (isResting)
-{
-    <div class="rest-overlay" role="status" aria-live="polite">
-        <div class="rest-overlay-content">
-            <div class="rest-label">Rest</div>
-            <div class="rest-seconds">@remainingRestSeconds</div>
-            <div class="rest-unit">seconds</div>
-        </div>
-    </div>
-}
-                    </MudCardContent>
-                </MudCard>
-
-                <MudCard>
-                    <MudCardHeader>
-                        <MudText Typo="Typo.subtitle1">Recent History</MudText>
-                    </MudCardHeader>
-                    <MudCardContent>
-                        @if (historicalEntries.Count == 0)
+                        @if (exercisePlan[currentExerciseIndex].ItemType == WorkoutPlanItemType.Strength)
                         {
-                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
-                                No prior history for this exercise yet.
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
+                                Enter the reps and weight for the current set.
                             </MudText>
+
+                            <MudGrid Spacing="2" Class="mb-3">
+                                <MudItem xs="6">
+                                    <MudNumericField T="int"
+                                                 Label="Reps"
+                                                 Value="currentSetReps"
+                                                 ValueChanged="@(value => currentSetReps = value)"
+                                                 Min="1"
+                                                 Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="6">
+                                    <MudNumericField T="decimal"
+                                                 Label="Weight (lbs)"
+                                                 Value="currentSetWeight"
+                                                 ValueChanged="@(value => currentSetWeight = value)"
+                                                 Min="0"
+                                                 Variant="Variant.Outlined" />
+                                </MudItem>
+                            </MudGrid>
+
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-2">
+                                Set @(completedSetsForCurrentExercise + 1) of @exercisePlan[currentExerciseIndex].TargetSets
+                            </MudText>
+
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       FullWidth="true"
+                                       OnClick="RecordSet"
+                                       Disabled="@(isRestOverlayActive || workoutComplete || string.IsNullOrWhiteSpace(currentExerciseName))">
+                                End Set
+                            </MudButton>
                         }
                         else
                         {
-                            <MudStack Spacing="1">
-                                @foreach (var entry in historicalEntries)
-                                {
-                                    <MudPaper Class="pa-3" Outlined="true">
-                                        <MudText Typo="Typo.body2">
-                                            @entry.Reps reps × @entry.WeightLbs lbs
-                                        </MudText>
-                                        <MudText Typo="Typo.caption" Color="Color.Tertiary">
-                                            Logged @entry.LoggedUtc.ToLocalTime().ToString("MMM d, yyyy • h:mm tt")
-                                        </MudText>
-                                    </MudPaper>
-                                }
-                            </MudStack>
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
+                                Complete the timed workout when finished.
+                            </MudText>
+
+                            <MudText Typo="Typo.body1" Class="mb-2">
+                               Duration: @FormatMinutesSeconds((exercisePlan[currentExerciseIndex].DurationMinutes ?? 0) * 60)
+                            </MudText>
+
+                                var distanceMiles = exercisePlan[currentExerciseIndex].DistanceMiles;
+                            
+
+                            @if (distanceMiles.HasValue)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
+                                    Distance: @distanceMiles.Value miles
+                                </MudText>
+                            }
+
+                            @if (!timedTimerStartedForCurrentExercise)
+                            {
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           FullWidth="true"
+                                           OnClick="StartTimedExerciseTimer"
+                                           Disabled="@(isRestOverlayActive || workoutComplete || string.IsNullOrWhiteSpace(currentExerciseName))">
+                                    Start Timer
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           FullWidth="true"
+                                           OnClick="CompleteTimedExercise"
+                                           Disabled="@(isRestOverlayActive || workoutComplete || string.IsNullOrWhiteSpace(currentExerciseName))">
+                                    Complete Timed Exercise
+                                </MudButton>
+                            }
                         }
                     </MudCardContent>
                 </MudCard>
 
+                <MudGrid Spacing="2">
+    <MudItem xs="12" sm="4">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.body2" Color="Color.Tertiary">Personal Best</MudText>
+
+                @if (personalBest is null)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                        No data yet for this exercise.
+                    </MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h6">@personalBest.Exercise</MudText>
+                    <MudText Typo="Typo.body1">@personalBest.MaxWeight lbs</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                        @personalBest.MaxReps reps
+                    </MudText>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="8">
+        <MudCard>
+            <MudCardHeader>
+                <MudText Typo="Typo.subtitle1">Progress</MudText>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (exerciseProgressionPoints.Count > 1)
+                {
+                    <MudChart T="double"
+                              ChartType="ChartType.Line"
+                              ChartSeries="@BuildProgressSeries()"
+                              XAxisLabels="@BuildProgressLabels()"
+                              Width="100%"
+                              Height="250px" />
+                }
+                else if (exerciseProgressionPoints.Count == 1)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                        Only one data point so far: @exerciseProgressionPoints[0].WeightLbs lbs
+                    </MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                        No progression data yet for this exercise.
+                    </MudText>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+}
                 @if (workoutComplete)
                 {
                     <MudAlert Severity="Severity.Success" Class="mt-3">
@@ -149,34 +211,70 @@
                         End Workout Session
                     </MudButton>
                 }
-            }
+            
         }
     </MudStack>
 </MudContainer>
 
 @code {
+    private enum OverlayMode
+    {
+        None,
+        Workout,
+        Rest
+    }
+private PersonalBestDto? personalBest;
+private List<ExerciseProgressionPointDto> exerciseProgressionPoints = [];
     private DateTime sessionStartUtc;
-    private record ExercisePlanItem(string Name, int TargetSets, int DefaultReps, decimal DefaultWeight);
-private List<ExercisePlanItem> exercisePlan = [];
-private int completedSetsForCurrentExercise;
-private bool workoutComplete;
+
+    private sealed class ExercisePlanItem
+    {
+        public string Name { get; set; } = "";
+        public WorkoutPlanItemType ItemType { get; set; }
+        public int TargetSets { get; set; }
+        public int DefaultReps { get; set; }
+        public decimal DefaultWeight { get; set; }
+        public int? DurationMinutes { get; set; }
+        public decimal? DistanceMiles { get; set; }
+    }
+
+    private sealed class PersonalBestDto
+{
+    public string Exercise { get; set; } = "";
+    public decimal MaxWeight { get; set; }
+    public int MaxReps { get; set; }
+}
+
+private sealed class ExerciseProgressionPointDto
+{
+    public DateTime LoggedUtc { get; set; }
+    public decimal WeightLbs { get; set; }
+}
+
+    private List<ExercisePlanItem> exercisePlan = [];
+    private int completedSetsForCurrentExercise;
+    private bool workoutComplete;
+
     [Parameter] public int WorkoutId { get; set; }
 
     private string? userId;
     private WorkoutSession? workout;
     private List<ExerciseLog> workoutExercises = [];
     private List<string> exerciseNames = [];
-    private List<ExerciseLog> historicalEntries = [];
-
+private bool timedTimerStartedForCurrentExercise;
     private bool isWorkoutStarted;
-    private bool isResting;
     private int restSeconds = 30;
-    private int remainingRestSeconds;
     private int currentExerciseIndex;
     private string? currentExerciseName;
     private int currentSetReps = 10;
     private decimal currentSetWeight;
-    private CancellationTokenSource? restTimerCts;
+
+    private OverlayMode activeOverlayMode = OverlayMode.None;
+    private bool isOverlayVisible => activeOverlayMode != OverlayMode.None;
+    private bool isRestOverlayActive => activeOverlayMode == OverlayMode.Rest;
+    private string overlayTitle = "Workout";
+    private int overlaySecondsRemaining;
+    private CancellationTokenSource? overlayCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -202,35 +300,41 @@ private bool workoutComplete;
             .ThenBy(p => p.Id)
             .ToListAsync();
 
-exercisePlan = planItems
-    .Select(p => new ExercisePlanItem(
-        p.ExerciseName.Trim(),
-        Math.Max(1, p.Sets),
-        Math.Max(1, p.Reps),
-        p.WeightLbs))
-    .ToList();
+        exercisePlan = planItems.Select(p => new ExercisePlanItem
+        {
+            Name = p.ExerciseName.Trim(),
+            ItemType = p.ItemType,
+            TargetSets = p.ItemType == WorkoutPlanItemType.Strength ? Math.Max(1, p.Sets ?? 1) : 1,
+            DefaultReps = p.ItemType == WorkoutPlanItemType.Strength ? Math.Max(1, p.Reps ?? 1) : 0,
+            DefaultWeight = p.ItemType == WorkoutPlanItemType.Strength ? (p.WeightLbs ?? 0) : 0,
+            DurationMinutes = p.ItemType == WorkoutPlanItemType.Timed ? Math.Max(1, p.DurationMinutes ?? 1) : null,
+            DistanceMiles = p.DistanceMiles
+        }).ToList();
 
-exerciseNames = exercisePlan.Select(p => p.Name).ToList();
+        exerciseNames = exercisePlan.Select(p => p.Name).ToList();
     }
 
     private async Task StartWorkout()
-{
-    if (workout is null || exercisePlan.Count == 0) return;
+    {
+        if (workout is null || exercisePlan.Count == 0) return;
 
-    currentExerciseIndex = 0;
-    isWorkoutStarted = true;
-    isResting = false;
-    workoutComplete = false;
+        currentExerciseIndex = 0;
+        isWorkoutStarted = true;
+        workoutComplete = false;
+        
 
-    sessionStartUtc = DateTime.UtcNow;
-    var current = exercisePlan[currentExerciseIndex];
-    currentExerciseName = current.Name;
-    currentSetReps = current.DefaultReps;
-    currentSetWeight = current.DefaultWeight;
-    completedSetsForCurrentExercise = 0;
+        sessionStartUtc = DateTime.UtcNow;
 
-    await LoadHistoricalEntries();
-}
+        var current = exercisePlan[currentExerciseIndex];
+        currentExerciseName = current.Name;
+        currentSetReps = current.DefaultReps;
+        currentSetWeight = current.DefaultWeight;
+        completedSetsForCurrentExercise = 0;
+
+        timedTimerStartedForCurrentExercise = current.ItemType != WorkoutPlanItemType.Timed;
+
+        await LoadExerciseInsights();
+    }
 
     private async Task RecordSet()
     {
@@ -250,94 +354,221 @@ exerciseNames = exercisePlan.Select(p => p.Name).ToList();
         Db.ExerciseLogs.Add(entry);
         await Db.SaveChangesAsync();
 
-        await LoadHistoricalEntries();
+        await LoadExerciseInsights();
         completedSetsForCurrentExercise++;
 
-var current = exercisePlan[currentExerciseIndex];
-var reachedTarget = completedSetsForCurrentExercise >= current.TargetSets;
+        var current = exercisePlan[currentExerciseIndex];
+        var reachedTarget = completedSetsForCurrentExercise >= current.TargetSets;
 
-if (reachedTarget)
-{
-    if (currentExerciseIndex < exercisePlan.Count - 1)
-    {
-        currentExerciseIndex++;
-        var next = exercisePlan[currentExerciseIndex];
+        if (reachedTarget)
+        {
+            if (currentExerciseIndex < exercisePlan.Count - 1)
+            {
+                currentExerciseIndex++;
+                var next = exercisePlan[currentExerciseIndex];
 
-        currentExerciseName = next.Name;
-        currentSetReps = next.DefaultReps;
-        currentSetWeight = next.DefaultWeight;
-        completedSetsForCurrentExercise = 0;
+                timedTimerStartedForCurrentExercise = next.ItemType != WorkoutPlanItemType.Timed;
 
-        await LoadHistoricalEntries();
+                currentExerciseName = next.Name;
+                currentSetReps = next.DefaultReps;
+                currentSetWeight = next.DefaultWeight;
+                completedSetsForCurrentExercise = 0;
+
+                await LoadExerciseInsights();
+
+                activeOverlayMode = OverlayMode.None;
+await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                workoutComplete = true;
+                activeOverlayMode = OverlayMode.None;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+        else
+        {
+            await StartOverlayAsync(OverlayMode.Rest, restSeconds, "Rest");
+        }
     }
-    else
+
+    private async Task StartOverlayAsync(OverlayMode mode, int seconds, string title)
     {
-        workoutComplete = true;
-        isResting = false;
-        return;
-    }
-}
+        overlayCts?.Cancel();
 
-await StartRestTimer();
-    }
+        activeOverlayMode = mode;
+        overlayTitle = title;
+        overlaySecondsRemaining = Math.Max(1, seconds);
 
-    private async Task StartRestTimer()
-    {
-        if (restSeconds < 1) return;
-
-        isResting = true;
-        remainingRestSeconds = restSeconds;
-        restTimerCts?.Cancel();
-        restTimerCts = new CancellationTokenSource();
-        var token = restTimerCts.Token;
+        var cts = new CancellationTokenSource();
+        overlayCts = cts;
+        var token = cts.Token;
 
         try
         {
-            while (remainingRestSeconds > 0)
+            while (overlaySecondsRemaining > 0)
             {
                 await Task.Delay(1000, token);
-                remainingRestSeconds--;
+                overlaySecondsRemaining--;
                 await InvokeAsync(StateHasChanged);
             }
         }
-        catch (TaskCanceledException) { }
+        catch (TaskCanceledException)
+        {
+        }
         finally
         {
             if (!token.IsCancellationRequested)
             {
-                isResting = false;
+                activeOverlayMode = OverlayMode.None;
                 await InvokeAsync(StateHasChanged);
             }
         }
     }
 
-    private async Task LoadHistoricalEntries()
+    private async Task LoadExerciseInsights()
+{
+    if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(currentExerciseName))
     {
-        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(currentExerciseName))
-        {
-            historicalEntries = [];
-            return;
-        }
-
-        var normalizedCurrent = currentExerciseName.Trim().ToLower();
-
-        historicalEntries = await Db.ExerciseLogs
-            .Where(e => e.UserId == userId
-                && e.ExerciseName.Trim().ToLower() == normalizedCurrent
-                && e.LoggedUtc < sessionStartUtc)
-            .OrderByDescending(e => e.LoggedUtc)
-            .Take(6)
-            .ToListAsync();
+        personalBest = null;
+        exerciseProgressionPoints = [];
+        return;
     }
+
+    var normalizedCurrent = currentExerciseName.Trim().ToLower();
+
+    var matchingLogs = await Db.ExerciseLogs
+        .Where(e => e.UserId == userId
+            && e.ExerciseName.Trim().ToLower() == normalizedCurrent)
+        .OrderBy(e => e.LoggedUtc)
+        .ToListAsync();
+
+    if (matchingLogs.Count == 0)
+    {
+        personalBest = null;
+        exerciseProgressionPoints = [];
+        return;
+    }
+
+    personalBest = new PersonalBestDto
+    {
+        Exercise = currentExerciseName,
+        MaxWeight = matchingLogs.Max(e => e.WeightLbs),
+        MaxReps = matchingLogs.Max(e => e.Reps)
+    };
+
+    exerciseProgressionPoints = matchingLogs
+        .Where(e => e.WeightLbs > 0)
+        .Select(e => new ExerciseProgressionPointDto
+        {
+            LoggedUtc = e.LoggedUtc,
+            WeightLbs = e.WeightLbs
+        })
+        .ToList();
+}
 
     private void GoBack()
     {
         NavigationManager.NavigateTo("/workouts");
     }
+
     private void EndWorkoutAndReturnToDashboard()
+    {
+        NavigationManager.NavigateTo("/dashboard");
+    }
+    private static string FormatMinutesSeconds(int totalSeconds)
 {
-    NavigationManager.NavigateTo("/dashboard");
+var clamped = Math.Max(0, totalSeconds);
+var minutes = clamped / 60;
+var seconds = clamped % 60;
+return $"{minutes:00}:{seconds:00}";
 }
+
+    private async Task CompleteTimedExercise()
+    {
+        if (workout is null || string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(currentExerciseName))
+            return;
+
+        var entry = new ExerciseLog
+        {
+            UserId = userId,
+            WorkoutSessionId = workout.Id,
+            ExerciseName = currentExerciseName,
+            Sets = 1,
+            Reps = 1,
+            WeightLbs = 0,
+            LoggedUtc = DateTime.UtcNow
+        };
+
+        Db.ExerciseLogs.Add(entry);
+        await Db.SaveChangesAsync();
+
+        overlayCts?.Cancel();
+
+        if (currentExerciseIndex < exercisePlan.Count - 1)
+{
+    currentExerciseIndex++;
+    var next = exercisePlan[currentExerciseIndex];
+
+    timedTimerStartedForCurrentExercise = next.ItemType != WorkoutPlanItemType.Timed;
+
+    currentExerciseName = next.Name;
+    currentSetReps = next.DefaultReps;
+    currentSetWeight = next.DefaultWeight;
+    completedSetsForCurrentExercise = 0;
+
+    await LoadExerciseInsights();
+
+    activeOverlayMode = OverlayMode.None;
+    await InvokeAsync(StateHasChanged);
+}
+else
+{
+    workoutComplete = true;
+    activeOverlayMode = OverlayMode.None;
+    await InvokeAsync(StateHasChanged);
+}
+    }
+
+    private List<ChartSeries<double>> BuildProgressSeries()
+{
+    return
+    [
+        new ChartSeries<double>
+        {
+            Name = "Weight (lbs)",
+            Data = exerciseProgressionPoints.Select(p => (double)p.WeightLbs).ToArray()
+        }
+    ];
+}
+
+private string[] BuildProgressLabels()
+{
+    return exerciseProgressionPoints
+        .Select(p => p.LoggedUtc.ToLocalTime().ToString("M/d"))
+        .ToArray();
+}
+
+    private async Task StartTimedExerciseTimer()
+    {
+        if (workoutComplete || currentExerciseIndex < 0 || currentExerciseIndex >= exercisePlan.Count)
+            return;
+
+        var current = exercisePlan[currentExerciseIndex];
+        if (current.ItemType != WorkoutPlanItemType.Timed || !current.DurationMinutes.HasValue)
+            return;
+
+        if (timedTimerStartedForCurrentExercise)
+            return;
+
+        timedTimerStartedForCurrentExercise = true;
+
+        await StartOverlayAsync(
+            OverlayMode.Workout,
+            current.DurationMinutes.Value * 60,
+            "Timed Exercise");
+    }
 }
 
 <style>
@@ -377,7 +608,7 @@ await StartRestTimer();
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(8rem, 45vh, 28rem);
+    font-size: clamp(4rem, 20vh, 14rem);
     font-weight: 900;
     line-height: 1;
     letter-spacing: -0.03em;
@@ -390,3 +621,13 @@ await StartRestTimer();
     opacity: 0.85;
 }
 </style>
+
+@if (isOverlayVisible)
+{
+    <div class="rest-overlay" role="status" aria-live="polite">
+        <div class="rest-overlay-content">
+            <div class="rest-label">@overlayTitle</div>
+            <div class="rest-seconds">@FormatMinutesSeconds(overlaySecondsRemaining)</div>
+        </div>
+    </div>
+}

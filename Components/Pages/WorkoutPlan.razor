@@ -1,6 +1,8 @@
 @page "/workout-builder" 
 @page "/workout-builder/{WorkoutId:int}"
-
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Globalization
+@using System.Text
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
@@ -23,9 +25,23 @@
 
             @if (userWorkouts.Count == 0)
             {
-                <MudAlert Severity="Severity.Info">
-                    No workouts found. <MudLink Href="/workouts">Create one first</MudLink>.
+                <MudAlert Severity="Severity.Info" Class="mb-3">
+                    No workouts found yet. Create one to start building.
                 </MudAlert>
+
+                <MudStack Row="true" Spacing="1" Class="mt-2">
+                    <MudTextField @bind-Value="newWorkoutName"
+                                  Label="Workout Name"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Style="max-width: 280px;" />
+
+                    <MudButton Variant="Variant.Filled"
+                                 Color="Color.Primary"
+                                 OnClick="CreateAndOpenNewWorkout">
+                        Create New Workout
+                    </MudButton>
+                </MudStack>
             }
             else
             {
@@ -35,14 +51,24 @@
                         <MudItem xs="12">
                             <MudCard Class="mud-clickable" Style="cursor: pointer;" @onclick="@(() => SelectWorkout(w.Id))">
                                 <MudCardContent>
-                                    <MudStack>
-                                        <MudText Typo="Typo.h6">@w.Name</MudText>
-                                        <MudText Typo="Typo.body2" Color="Color.Tertiary">
-                                            Created @w.StartedUtc.ToLocalTime().ToString("MMM d, yyyy")
-                                        </MudText>
-                                        <MudText Typo="Typo.caption">
-                                            @(w.PlanItems?.Count ?? 0) exercise@((w.PlanItems?.Count ?? 0) == 1 ? "" : "s")
-                                        </MudText>
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start">
+                                        <MudStack>
+                                            <MudText Typo="Typo.h6">@w.Name</MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                                Created @w.StartedUtc.ToLocalTime().ToString("MMM d, yyyy")
+                                            </MudText>
+                                            <MudText Typo="Typo.caption">
+                                                @(w.PlanItems?.Count ?? 0) exercise@((w.PlanItems?.Count ?? 0) == 1 ? "" : "s")
+                                            </MudText>
+                                        </MudStack>
+
+                                        <span @onclick="() => { }" @onclick:stopPropagation="true">
+    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                   Color="Color.Error"
+                   Size="Size.Small"
+                   Title="Delete workout"
+                   OnClick="@(async () => await DeleteWorkoutFromList(w.Id))" />
+</span>
                                     </MudStack>
                                 </MudCardContent>
                             </MudCard>
@@ -66,7 +92,7 @@
                 Back to Workouts
             </MudButton>
 
-            <MudCard>
+            <MudCard Class="mb-3">
                 <MudCardContent>
                     <MudText Typo="Typo.h5">@workout.Name</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-3">
@@ -81,40 +107,60 @@
                     <MudTable Items="planRows" Dense="true" Hover="true" Bordered="true" Striped="true">
                         <HeaderContent>
                             <MudTh>#</MudTh>
+                            <MudTh>Type</MudTh>
                             <MudTh>Exercise</MudTh>
-                            <MudTh>Sets</MudTh>
-                            <MudTh>Reps</MudTh>
-                            <MudTh>Weight</MudTh>
+                            <MudTh>Details</MudTh>
                             <MudTh></MudTh>
                         </HeaderContent>
                         <RowTemplate>
-                            <MudTd DataLabel="#">
-                                @(planRows.IndexOf(context) + 1)
+                            <MudTd>@(planRows.IndexOf(context) + 1)</MudTd>
+
+                            <MudTd>
+                                <MudSelect T="WorkoutPlanItemType" @bind-Value="context.ItemType" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem Value="WorkoutPlanItemType.Strength">Strength</MudSelectItem>
+                                    <MudSelectItem Value="WorkoutPlanItemType.Timed">Timed</MudSelectItem>
+                                </MudSelect>
                             </MudTd>
-                            <MudTd DataLabel="Exercise">
+
+                            <MudTd>
                                 <MudTextField @bind-Value="context.ExerciseName" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudTd>
-                            <MudTd DataLabel="Sets">
-                                <MudNumericField T="int" @bind-Value="context.Sets" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                            </MudTd>
-                            <MudTd DataLabel="Reps">
-                                <MudNumericField T="int" @bind-Value="context.Reps" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                            </MudTd>
-                            <MudTd DataLabel="Weight">
-                                <MudNumericField T="decimal" @bind-Value="context.WeightLbs" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                            </MudTd>
+
                             <MudTd>
-                                <MudStack Row="true" Spacing="1">
-                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp"
-                                                   Disabled="@(planRows.IndexOf(context) == 0)"
-                                                   OnClick="@(() => MoveUp(context))" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown"
-                                                   Disabled="@(planRows.IndexOf(context) == planRows.Count - 1)"
-                                                   OnClick="@(() => MoveDown(context))" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                                   Color="Color.Error"
-                                                   OnClick="@(() => RemoveRow(context))" />
-                                </MudStack>
+                                @if (context.ItemType == WorkoutPlanItemType.Strength)
+                                {
+                                    <MudStack Row="true" Spacing="1">
+                                        <MudNumericField T="int?" @bind-Value="context.Sets" Label="Sets" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                        <MudNumericField T="int?" @bind-Value="context.Reps" Label="Reps" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                        <MudNumericField T="decimal?" @bind-Value="context.WeightLbs" Label="Weight" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    </MudStack>
+                                }
+                                else
+                                {
+                                    <MudStack Row="true" Spacing="1">
+                                        <MudNumericField T="int?" @bind-Value="context.DurationMinutes" Label="Minutes" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                        <MudNumericField T="decimal?" @bind-Value="context.DistanceMiles" Label="Miles" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    </MudStack>
+                                }
+                            </MudTd>
+
+                            <MudTd>
+                                <MudStack Row="true" Spacing="0" Class="row-actions">
+    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   Disabled="@(planRows.IndexOf(context) == 0)"
+                   OnClick="@(() => MoveUp(context))" />
+    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   Disabled="@(planRows.IndexOf(context) == planRows.Count - 1)"
+                   OnClick="@(() => MoveDown(context))" />
+    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                   Size="Size.Small"
+                   Color="Color.Error"
+                   OnClick="@(() => RemoveRow(context))" />
+</MudStack>
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
@@ -123,19 +169,40 @@
 
                     <MudText Typo="Typo.subtitle1" Class="mb-2">Add Row</MudText>
                     <MudGrid Spacing="2">
-                        <MudItem xs="12" md="4">
+                        <MudItem xs="12" md="3">
+                            <MudSelect T="WorkoutPlanItemType" @bind-Value="newItemType" Label="Type" Variant="Variant.Outlined">
+                                <MudSelectItem Value="WorkoutPlanItemType.Strength">Strength</MudSelectItem>
+                                <MudSelectItem Value="WorkoutPlanItemType.Timed">Timed</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" md="3">
                             <MudTextField @bind-Value="newExerciseName" Label="Exercise" Variant="Variant.Outlined" />
                         </MudItem>
-                        <MudItem xs="4" md="2">
-                            <MudNumericField T="int" @bind-Value="newSets" Label="Sets" Min="1" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="4" md="2">
-                            <MudNumericField T="int" @bind-Value="newReps" Label="Reps" Min="1" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="4" md="2">
-                            <MudNumericField T="decimal" @bind-Value="newWeight" Label="Weight" Min="0" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" md="2">
+
+                        @if (newItemType == WorkoutPlanItemType.Strength)
+                        {
+                            <MudItem xs="4" md="2">
+                                <MudNumericField T="int?" @bind-Value="newSets" Label="Sets" Min="1" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="4" md="2">
+                                <MudNumericField T="int?" @bind-Value="newReps" Label="Reps" Min="1" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="4" md="2">
+                                <MudNumericField T="decimal?" @bind-Value="newWeight" Label="Weight" Min="0" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                        else
+                        {
+                            <MudItem xs="4" md="2">
+                                <MudNumericField T="int?" @bind-Value="newDurationMinutes" Label="Minutes" Min="1" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="4" md="2">
+                                <MudNumericField T="decimal?" @bind-Value="newDistanceMiles" Label="Miles" Min="0" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+
+                        <MudItem xs="12" Class="mt-1">
                             <MudButton Variant="Variant.Filled"
                                        Color="Color.Primary"
                                        FullWidth="true"
@@ -146,17 +213,78 @@
                         </MudItem>
                     </MudGrid>
 
-                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="1" Class="mt-4">
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="SavePlan">
-                            Save Plan
+    <MudPaper Class="builder-appbar mt-4 pa-2" Outlined="true">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small">
+                @(planRows.Count) item@((planRows.Count == 1) ? "" : "s")
+            </MudChip>
+
+            <MudTextField @bind-Value="newWorkoutName"
+                          Label="Workout Name"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Class="builder-appbar-name" />
+        </MudStack>
+
+        <MudStack Row="true" Spacing="1">
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       OnClick="ShowWorkoutList">
+                Back
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="CreateAndOpenNewWorkout">
+                New
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SavePlan">
+                Save
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       Disabled="@(planRows.Count == 0 || !WorkoutId.HasValue)"
+                       OnClick="BeginWorkoutFromBuilder">
+                Begin
+            </MudButton>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Import from CSV</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mb-2">
+    Strength rows: Type=Strength with Exercise, Sets, Reps, Weight. Timed rows: Type=Timed with Exercise, DurationMinutes, and optional DistanceMiles.
+</MudText>
+
+                    <MudStack Row="true" Spacing="2" Class="mb-2">
+                        <InputFile OnChange="OnCsvFileSelected" accept=".csv,text/csv" />
+                        <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       OnClick="ImportCsvPlanAsync"
+                                       Disabled="@(selectedCsvFile is null)">
+                            Import CSV
                         </MudButton>
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Success"
-                                   Disabled="@(planRows.Count == 0 || !WorkoutId.HasValue)"
-                                   OnClick="BeginWorkoutFromBuilder">
-    Begin Workout
-</MudButton>
                     </MudStack>
+
+                    @if (!string.IsNullOrWhiteSpace(importStatusMessage))
+                    {
+                        <MudAlert Severity="@importStatusSeverity" Dense="true" Class="mt-2">
+                            @importStatusMessage
+                        </MudAlert>
+                    }
                 </MudCardContent>
             </MudCard>
         }
@@ -164,6 +292,10 @@
 </MudContainer>
 
 @code {
+    private IBrowserFile? selectedCsvFile;
+private string? importStatusMessage;
+private Severity importStatusSeverity = Severity.Info;
+    private string newWorkoutName = "New Workout";
     [Parameter] public int? WorkoutId { get; set; }
 
     private string? userId;
@@ -173,9 +305,12 @@
     private bool showingList = false;
 
     private string newExerciseName = "";
-    private int newSets = 3;
-    private int newReps = 10;
-    private decimal newWeight = 0;
+    private WorkoutPlanItemType newItemType = WorkoutPlanItemType.Strength;
+    private int? newSets = 3;
+    private int? newReps = 10;
+    private decimal? newWeight = 0;
+    private int? newDurationMinutes;
+    private decimal? newDistanceMiles;
 
     private string? statusMessage;
     private Severity statusSeverity = Severity.Info;
@@ -258,19 +393,34 @@
         if (string.IsNullOrWhiteSpace(newExerciseName))
             return;
 
-        planRows.Add(new WorkoutPlanItem
+        var row = new WorkoutPlanItem
         {
             ExerciseName = newExerciseName.Trim(),
-            Sets = Math.Max(1, newSets),
-            Reps = Math.Max(1, newReps),
-            WeightLbs = Math.Max(0, newWeight),
+            ItemType = newItemType,
             DisplayOrder = planRows.Count + 1
-        });
+        };
+
+        if (newItemType == WorkoutPlanItemType.Strength)
+        {
+            row.Sets = Math.Max(1, newSets ?? 1);
+            row.Reps = Math.Max(1, newReps ?? 1);
+            row.WeightLbs = Math.Max(0, newWeight ?? 0);
+        }
+        else
+        {
+            row.DurationMinutes = Math.Max(1, newDurationMinutes ?? 1);
+            row.DistanceMiles = Math.Max(0, newDistanceMiles ?? 0);
+        }
+
+        planRows.Add(row);
 
         newExerciseName = "";
+        newItemType = WorkoutPlanItemType.Strength;
         newSets = 3;
         newReps = 10;
         newWeight = 0;
+        newDurationMinutes = null;
+        newDistanceMiles = null;
     }
 
     private void RemoveRow(WorkoutPlanItem row)
@@ -310,12 +460,20 @@
         if (string.IsNullOrWhiteSpace(userId) || !WorkoutId.HasValue)
             return;
 
-        if (planRows.Any(x => string.IsNullOrWhiteSpace(x.ExerciseName) || x.Sets < 1 || x.Reps < 1 || x.WeightLbs < 0))
-        {
-            statusSeverity = Severity.Error;
-            statusMessage = "Each row must have Exercise, Sets >= 1, Reps >= 1, and Weight >= 0.";
-            return;
-        }
+        if (planRows.Any(x =>
+    string.IsNullOrWhiteSpace(x.ExerciseName) ||
+    (x.ItemType == WorkoutPlanItemType.Strength && (
+        !x.Sets.HasValue || x.Sets < 1 ||
+        !x.Reps.HasValue || x.Reps < 1 ||
+        !x.WeightLbs.HasValue || x.WeightLbs < 0)) ||
+    (x.ItemType == WorkoutPlanItemType.Timed && (
+        !x.DurationMinutes.HasValue || x.DurationMinutes < 1 ||
+        (x.DistanceMiles.HasValue && x.DistanceMiles < 0)))))
+{
+    statusSeverity = Severity.Error;
+    statusMessage = "Each row must have valid values for its type.";
+    return;
+}
 
         var existing = await Db.WorkoutPlanItems
             .Where(x => x.WorkoutSessionId == WorkoutId.Value && x.UserId == userId)
@@ -331,9 +489,12 @@
                 WorkoutSessionId = WorkoutId.Value,
                 UserId = userId,
                 ExerciseName = row.ExerciseName.Trim(),
-                Sets = row.Sets,
-                Reps = row.Reps,
-                WeightLbs = row.WeightLbs,
+                ItemType = row.ItemType,
+                Sets = row.ItemType == WorkoutPlanItemType.Strength ? row.Sets : null,
+                Reps = row.ItemType == WorkoutPlanItemType.Strength ? row.Reps : null,
+                WeightLbs = row.ItemType == WorkoutPlanItemType.Strength ? row.WeightLbs : null,
+                DurationMinutes = row.ItemType == WorkoutPlanItemType.Timed ? row.DurationMinutes : null,
+                DistanceMiles = row.ItemType == WorkoutPlanItemType.Timed ? row.DistanceMiles : null,
                 DisplayOrder = i + 1
             });
         }
@@ -353,4 +514,317 @@
 
         NavigationManager.NavigateTo($"/workout-session/{workoutId.Value}");
     }
+    private async Task CreateAndOpenNewWorkout()
+    {
+        var workout = await CreateWorkoutAsync(newWorkoutName);
+        if (workout is null)
+            return;
+
+        WorkoutId = workout.Id;
+        await SelectWorkout(workout.Id);
+    }
+
+    private async Task<WorkoutSession?> CreateWorkoutAsync(string? workoutName)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return null;
+
+        var createdWorkout = new WorkoutSession
+        {
+            UserId = userId,
+            Name = string.IsNullOrWhiteSpace(workoutName) ? "New Workout" : workoutName.Trim(),
+            StartedUtc = DateTime.UtcNow
+        };
+
+        Db.WorkoutSessions.Add(createdWorkout);
+        await Db.SaveChangesAsync();
+        await LoadWorkoutsList();
+
+        return createdWorkout;
+    }
+
+    private async Task OnCsvFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedCsvFile = e.File;
+        importStatusSeverity = Severity.Info;
+        importStatusMessage = $"Selected {e.File.Name}";
+    }
+
+    private async Task ImportCsvPlanAsync()
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            importStatusSeverity = Severity.Error;
+            importStatusMessage = "You need to sign in before importing a workout.";
+            return;
+        }
+
+        if (selectedCsvFile is null)
+        {
+            importStatusSeverity = Severity.Error;
+            importStatusMessage = "Choose a CSV file first.";
+            return;
+        }
+
+        try
+        {
+            using var stream = selectedCsvFile.OpenReadStream(5 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+
+            var rows = ParseCsv(content);
+            if (rows.Count == 0)
+            {
+                importStatusSeverity = Severity.Error;
+                importStatusMessage = "The selected file did not contain any rows.";
+                return;
+            }
+
+            var importedPlan = ParseImportedRows(rows);
+            if (importedPlan.Count == 0)
+            {
+                importStatusSeverity = Severity.Error;
+                importStatusMessage = "No usable workout rows were found. Use columns like Exercise, Sets, Reps, and Weight.";
+                return;
+            }
+
+            if (!WorkoutId.HasValue || WorkoutId.Value <= 0)
+            {
+                var createdWorkout = await CreateWorkoutAsync(newWorkoutName);
+                if (createdWorkout is null)
+                    return;
+
+                WorkoutId = createdWorkout.Id;
+            }
+
+            planRows = importedPlan;
+            await SavePlan();
+
+            selectedCsvFile = null;
+            importStatusSeverity = Severity.Success;
+            importStatusMessage = $"Imported {importedPlan.Count} exercise{(importedPlan.Count == 1 ? "" : "s")} into the plan.";
+            await SelectWorkout(WorkoutId!.Value);
+        }
+        catch (Exception ex)
+        {
+            importStatusSeverity = Severity.Error;
+            importStatusMessage = $"Unable to import the CSV file. {ex.Message}";
+        }
+    }
+
+    private static List<string[]> ParseCsv(string content)
+    {
+        var rows = new List<string[]>();
+        if (string.IsNullOrWhiteSpace(content))
+            return rows;
+
+        var currentCells = new List<string>();
+        var currentValue = new StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < content.Length; i++)
+        {
+            var c = content[i];
+
+            if (c == '"')
+            {
+                if (inQuotes && i + 1 < content.Length && content[i + 1] == '"')
+                {
+                    currentValue.Append('"');
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                currentCells.Add(currentValue.ToString());
+                currentValue.Clear();
+            }
+            else if ((c == '\n' || c == '\r') && !inQuotes)
+            {
+                if (c == '\r' && i + 1 < content.Length && content[i + 1] == '\n')
+                    i++;
+
+                currentCells.Add(currentValue.ToString());
+                rows.Add(currentCells.ToArray());
+                currentCells = new List<string>();
+                currentValue.Clear();
+            }
+            else
+            {
+                currentValue.Append(c);
+            }
+        }
+
+        if (currentValue.Length > 0 || currentCells.Count > 0)
+        {
+            currentCells.Add(currentValue.ToString());
+            rows.Add(currentCells.ToArray());
+        }
+
+        return rows.Where(x => x.Any(cell => !string.IsNullOrWhiteSpace(cell))).ToList();
+    }
+
+    private List<WorkoutPlanItem> ParseImportedRows(IReadOnlyList<string[]> rows)
+    {
+        if (rows.Count == 0)
+            return [];
+
+        var headers = rows[0].Select(x => x.Trim().ToLowerInvariant()).ToArray();
+        var typeIndex = FindHeaderIndex(headers, "type", "item type");
+        var exerciseIndex = FindHeaderIndex(headers, "exercise", "exercise name", "name");
+        var setsIndex = FindHeaderIndex(headers, "sets");
+        var repsIndex = FindHeaderIndex(headers, "reps");
+        var weightIndex = FindHeaderIndex(headers, "weight");
+        var durationIndex = FindHeaderIndex(headers, "duration", "durationminutes", "minutes");
+        var distanceIndex = FindHeaderIndex(headers, "distance", "distancemiles", "miles");
+
+        if (exerciseIndex < 0 && rows[0].Length >= 4)
+        {
+            exerciseIndex = 0;
+            setsIndex = 1;
+            repsIndex = 2;
+            weightIndex = 3;
+        }
+
+        var importedRows = new List<WorkoutPlanItem>();
+
+        for (var i = 1; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            if (row.Length == 0 || row.All(cell => string.IsNullOrWhiteSpace(cell)))
+                continue;
+
+            var itemType = ParseItemType(GetCell(row, typeIndex, "strength"));
+            var exerciseName = GetCell(row, exerciseIndex, "");
+            if (string.IsNullOrWhiteSpace(exerciseName))
+                continue;
+
+            var item = new WorkoutPlanItem
+            {
+                ExerciseName = exerciseName.Trim(),
+                ItemType = itemType,
+                DisplayOrder = importedRows.Count + 1
+            };
+
+            if (itemType == WorkoutPlanItemType.Strength)
+            {
+                item.Sets = Math.Max(1, ParseInt(GetCell(row, setsIndex, "1")));
+                item.Reps = Math.Max(1, ParseInt(GetCell(row, repsIndex, "1")));
+                item.WeightLbs = Math.Max(0, ParseDecimal(GetCell(row, weightIndex, "0")));
+            }
+            else
+            {
+                item.DurationMinutes = Math.Max(1, ParseInt(GetCell(row, durationIndex, "1")));
+                item.DistanceMiles = ParseNullableDecimal(GetCell(row, distanceIndex, ""));
+            }
+
+            importedRows.Add(item);
+        }
+
+        return importedRows;
+    }
+
+    private static int FindHeaderIndex(IReadOnlyList<string> headers, params string[] aliases)
+    {
+        for (var i = 0; i < headers.Count; i++)
+        {
+            var header = headers[i];
+            if (aliases.Any(alias => header.Equals(alias, StringComparison.OrdinalIgnoreCase)))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string GetCell(IReadOnlyList<string> row, int index, string fallback)
+    {
+        if (index >= 0 && index < row.Count)
+            return row[index].Trim();
+
+        return fallback;
+    }
+
+    private static int ParseInt(string value)
+    {
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result))
+            return result;
+
+        if (int.TryParse(value, out result))
+            return result;
+
+        return 0;
+    }
+
+    private static decimal ParseDecimal(string value)
+    {
+        if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var result))
+            return result;
+
+        if (decimal.TryParse(value, out result))
+            return result;
+
+        return 0;
+    }
+
+    private static WorkoutPlanItemType ParseItemType(string value)
+    {
+        return value.Trim().Equals("timed", StringComparison.OrdinalIgnoreCase)
+            ? WorkoutPlanItemType.Timed
+            : WorkoutPlanItemType.Strength;
+    }
+    private static decimal? ParseNullableDecimal(string value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+        return null;
+
+    if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var result))
+        return result;
+
+    if (decimal.TryParse(value, out result))
+        return result;
+
+    return null;
 }
+private async Task DeleteWorkoutFromList(int workoutId)
+{
+    if (string.IsNullOrWhiteSpace(userId))
+        return;
+
+    var target = await Db.WorkoutSessions
+        .FirstOrDefaultAsync(w => w.Id == workoutId && w.UserId == userId);
+
+    if (target is null)
+        return;
+
+    Db.WorkoutSessions.Remove(target);
+    await Db.SaveChangesAsync();
+
+    await LoadWorkoutsList();
+}
+}
+<style>
+.builder-appbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
+    background: color-mix(in srgb, var(--mud-palette-surface) 92%, transparent);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.builder-appbar-name {
+    min-width: 220px;
+    max-width: 300px;
+}
+
+.row-actions .mud-icon-button {
+    margin: 0 2px;
+}
+</style>
