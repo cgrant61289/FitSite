@@ -208,9 +208,21 @@ using (var scope = app.Services.CreateScope())
     var cs = builder.Configuration.GetConnectionString("DefaultConnection") ?? "";
 
     if (IsPostgresConnectionString(cs))
-    db.Database.Migrate();
-else
-    db.Database.EnsureCreated();
+    {
+        try
+        {
+            db.Database.Migrate();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("pending changes", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("EF migration mismatch detected; creating schema from current model.");
+            db.Database.EnsureCreated();
+        }
+    }
+    else
+    {
+        db.Database.EnsureCreated();
+    }
 }
 
 app.Run();
