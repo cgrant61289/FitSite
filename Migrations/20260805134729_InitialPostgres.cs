@@ -12,6 +12,16 @@ namespace FitSite.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // This migration was originally generated to convert SQLite TEXT columns to
+            // proper PostgreSQL types. On a fresh Render PostgreSQL database the columns
+            // already have the correct types from InitialCreate, so the AlterColumn calls
+            // would fail with "cannot be cast automatically". The no-op here lets EF mark
+            // this migration as applied without executing the incompatible ALTER statements.
+            // WorkoutPlanItems is created in the subsequent AddWorkoutPlanItems migration.
+        }
+
+        private void _OriginalUp_NotUsed(MigrationBuilder migrationBuilder)
+        {
             migrationBuilder.AlterColumn<string>(
                 name: "UserId",
                 table: "WorkoutSessions",
